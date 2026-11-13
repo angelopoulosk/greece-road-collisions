@@ -22,35 +22,31 @@ def draw_map(img, box, blur=5, gain=9, glow_c=(255, 107, 61), core_c=(122, 21, 0
     img.paste(Image.new('RGB', (W, H), glow_c), (0, 0), glow)
     img.paste(Image.new('RGB', (W, H), core_c), (0, 0), core)
 
-# share card 1200x630; everything sits in the central 600px so side-cropped previews keep it
+# share card 1200x630: dark text panel beside the map, both pulled into the middle
 W, H = 1200, 630
-DARK = (22, 27, 34)
 img = Image.new('RGB', (W, H), BG)
-draw_map(img, (425, 196, 775, 548), blur=4, gain=10, glow_c=(200, 20, 20), core_c=(110, 0, 0))   # blood red
+draw_map(img, (596, 40, 1026, 590))
 dr = ImageDraw.Draw(img)
-title = ImageFont.truetype(F + 'Inter-Bold.otf', 62)
+L, T, R, B = 176, 70, 580, 560
+dr.rounded_rectangle((L, T, R, B), radius=24, fill=(22, 27, 34))
+title = ImageFont.truetype(F + 'Inter-Bold.otf', 60)
 sub = ImageFont.truetype(F + 'Inter-Regular.otf', 26)
-stat = ImageFont.truetype(F + 'Inter-SemiBold.otf', 24)
-small = ImageFont.truetype(F + 'Inter-Regular.otf', 18)
-cx = W // 2
-tw1 = dr.textlength('Δεν είναι ', font=title); tw2 = dr.textlength('ατύχημα', font=title)
-x = cx - (tw1 + tw2) / 2
-dr.text((x, 40), 'Δεν είναι ', font=title, fill=(22, 27, 34))
-dr.text((x + tw1, 40), 'ατύχημα', font=title, fill=(138, 3, 3))
-dr.text((cx, 120), 'Τροχαίες συγκρούσεις και διακομιδές', font=sub, fill=(70, 78, 90), anchor='mt')
-dr.text((cx, 154), 'στην Ελλάδα, 2020–2025', font=sub, fill=(70, 78, 90), anchor='mt')
-a, b = '84.331 συγκρούσεις', '119.897 διακομιδές'
-gap = 28
-wa, wb = dr.textlength(a, font=stat), dr.textlength(b, font=stat)
-x = cx - (wa + gap + wb) / 2
-dr.text((x, 568), a, font=stat, fill=(138, 3, 3))
-dr.text((x + wa + gap, 568), b, font=stat, fill=(0, 92, 150))
-dr.text((cx, 606), 'Πηγή: accidents.maps.gov.gr', font=small, fill=(110, 118, 128), anchor='mt')
+stat = ImageFont.truetype(F + 'Inter-SemiBold.otf', 25)
+small = ImageFont.truetype(F + 'Inter-Regular.otf', 17)
+x = L + 36
+dr.text((x, T + 34), 'Δεν είναι', font=title, fill=(232, 236, 241))
+dr.text((x, T + 102), 'ατύχημα', font=title, fill=(255, 210, 63))
+for i, line in enumerate(['Τροχαίες συγκρούσεις και', 'διακομιδές στην Ελλάδα,', '2020–2025']):
+    dr.text((x, T + 196 + 34 * i), line, font=sub, fill=(185, 196, 210))
+dr.line((x, T + 318, R - 36, T + 318), fill=(42, 49, 60), width=2)
+dr.text((x, T + 336), '84.331 συγκρούσεις', font=stat, fill=(255, 107, 61))
+dr.text((x, T + 370), '119.897 διακομιδές', font=stat, fill=(76, 194, 255))
+dr.text((x, B - 46), 'Πηγή: accidents.maps.gov.gr', font=small, fill=(120, 130, 142))
 img.save(f'{repo}/og.png', optimize=True)
 
 # square icon: map only
 ic = Image.new('RGB', (512, 512), BG)
-draw_map(ic, (28, 28, 484, 484), blur=4, gain=10, glow_c=(200, 20, 20), core_c=(110, 0, 0))
+draw_map(ic, (28, 28, 484, 484), blur=4, gain=10)
 ic.save(f'{repo}/icon-512.png', optimize=True)
 ic.resize((180, 180), Image.LANCZOS).save(f'{repo}/apple-touch-icon.png', optimize=True)
 ic.resize((32, 32), Image.LANCZOS).save(f'{repo}/favicon.png', optimize=True)

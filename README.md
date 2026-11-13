@@ -30,7 +30,7 @@ Causes that fall under the [Fatal Five](https://www.surreyroadsafe.org.uk/the-fa
 | Speeding | ΟΔΗΓΟΣ-ΥΠΕΡΒΟΛΙΚΗ ΤΑΧΥΤΗΤΑ ΓΕΝΙΚΩΣ |
 | Drink/drug driving | ΟΔΗΓΟΣ-ΟΔΗΓΗΣΗ ΣΕ ΚΑΤΑΣΤΑΣΗ ΜΕΘΗΣ |
 | Distracted driving | ΟΔΗΓΟΣ-ΑΠΟΣΠΑΣΗ ΤΗΣ ΠΡΟΣΟΧΗΣ ΤΟΥ ΟΔΗΓΟΥ |
-| Careless driving | ΟΔΗΓΟΣ-ΑΝΤΙΚΑΝΟΝΙΚΟ ΠΡΟΣΠΕΡΑΣΜΑ, ΟΔΗΓΟΣ-ΜΗ ΤΗΡΗΣΗ ΑΠΟΣΤΑΣΗΣ ΑΣΦΑΛΕΙΑΣ, ΟΔΗΓΟΣ-ΕΠΙΔΕΙΚΤΙΚΟΙ ΕΛΙΓΜΟΙ ΣΤΗ ΜΕΣΗ ΤΗΣ ΟΔΟΥ |
+| Careless driving | ΟΔΗΓΟΣ-ΑΝΤΙΚΑΝΟΝΙΚΟ ΠΡΟΣΠΕΡΑΣΜΑ, ΟΔΗΓΟΣ-ΜΗ ΤΗΡΗΣΗ ΑΠΟΣΤΑΣΗΣ ΑΣΦΑΛΕΙΑΣ, ΟΔΗΓΟΣ-ΕΠΙΔΕΙΚΤΙΚΟΙ ΕΛΙΓΜΟΙ ΣΤΗ ΜΕΣΗ ΤΗΣ ΟΔΟΥ, ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΣΗΜΑΤΟΔΟΤΗ, ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΠΡΟΤΕΡΑΙΟΤΗΤΑΣ ΓΕΝΙΚΩΣ, ΟΔΗΓΟΣ-ΚΙΝΗΣΗ ΣΤΟ ΑΝΤΙΘΕΤΟ ΡΕΥΜΑ |
 | Not wearing a seatbelt | no matching cause in the source |
 
 The mapping is this repository's own reading of the source's cause labels.

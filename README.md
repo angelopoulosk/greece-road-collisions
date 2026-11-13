@@ -2,8 +2,6 @@
 
 **Source / Πηγή:** all data comes from the Greek government's road collision map, [accidents.maps.gov.gr](https://accidents.maps.gov.gr/geo-analytics/) (Χάρτης Τροχαίων Συγκρούσεων), retrieved on 13/11/2026.
 
-> «Το “ατύχημα” υπονοεί ότι δεν φταίει κανείς.» — Hot Fuzz (2007)
-
 Road collisions (συγκρούσεις) and ambulance transports (διακομιδές) in Greece, extracted from the
 government map at [accidents.maps.gov.gr](https://accidents.maps.gov.gr/geo-analytics/), plus a simple
 interactive map.

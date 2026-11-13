@@ -71,8 +71,6 @@
   <img class="hero" src="header.png" alt="" onerror="if(this.dataset.alt){this.remove()}else{this.dataset.alt=1;this.src='header.jpg'}">
   <h1>Δεν είναι ατύχημα</h1>
   <p class="lede">Τροχαίες συγκρούσεις και διακομιδές στην Ελλάδα, 2020–2025</p>
-  <p class="sub">«Το “ατύχημα” υπονοεί ότι δεν φταίει κανείς.»</p>
-  <p class="cite">— Hot Fuzz (2007)</p>
 
   <div class="row">
     <div class="label">Τύπος</div>
@@ -169,8 +167,11 @@ function addLayers(id, color) {
     }});
 }
 
-// Marked collisions get an emoji icon instead of a dot once individual points are visible:
-// 1 = 🚨 Fatal Five cause, 2 = 🚶‍♀️ pedestrian cause.
+// Marked collisions get an emoji icon instead of a dot once individual points are visible.
+// The cause's own emoji wins; other Fatal Five causes get 🚨; pedestrian causes get 🚶‍♀️.
+const MAP_ICONS = ['🚨', '🚶‍♀️', '📱', '🍾', '🚦', '💨', '🛑', '🌧️'];
+const iconFor = (name, fatal) =>
+  CAUSE_ICON[name] || (fatal ? '🚨' : name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' : name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🌧️' : '');
 function emojiImage(name, emoji) {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const ctx = c.getContext('2d');
@@ -179,19 +180,17 @@ function emojiImage(name, emoji) {
   ctx.fillText(emoji, 32, 36);
   map.addImage(name, ctx.getImageData(0, 0, 64, 64), { pixelRatio: 2 });
 }
-function addIconLayer(id, image, mark, k = 1) {
-  map.addLayer({ id, type: 'symbol', source: 'col', minzoom: 10,
-    filter: ['==', ['get', 'f'], mark],
+function addSirenLayer() {
+  MAP_ICONS.forEach((e, k) => emojiImage('icon' + (k + 1), e));
+  const k = ['match', ['get', 'f'], 2, 2, 1];   // the walking glyph is narrow, so draw it larger
+  map.addLayer({ id: 'col-icon', type: 'symbol', source: 'col', minzoom: 10,
+    filter: ['>', ['get', 'f'], 0],
     layout: {
-      'icon-image': image, 'icon-allow-overlap': true, 'icon-ignore-placement': true,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.3 * k, 14, 0.6 * k, 17, 0.9 * k]
+      'icon-image': ['concat', 'icon', ['to-string', ['get', 'f']]],
+      'icon-allow-overlap': true, 'icon-ignore-placement': true,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, ['*', 0.3, k], 14, ['*', 0.6, k], 17, ['*', 0.9, k]]
     },
     paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
-}
-function addSirenLayer() {
-  emojiImage('siren', '🚨'); emojiImage('walker', '🚶‍♀️');
-  addIconLayer('col-fatal', 'siren', 1);
-  addIconLayer('col-ped', 'walker', 2, 2);   // the walking glyph is narrow, so draw it larger
 }
 
 function refresh() {
@@ -305,7 +304,7 @@ async function load(name) {
   d.yr = d.t.map(yearOf);             // year of each record
   d.fatal = d.fatal || [];
   d.isFatal = d.causes.map((_, i) => d.fatal.includes(i));
-  d.mark = d.causes.map((n, i) => d.isFatal[i] ? 1 : n.startsWith('ΠΕΖΟΣ-') ? 2 : 0);
+  d.mark = d.causes.map((n, i) => MAP_ICONS.indexOf(iconFor(n, d.isFatal[i])) + 1);
   return d;
 }
 
@@ -319,7 +318,7 @@ Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('lo
   document.getElementById('range').textContent =
     'Συγκρούσεις ' + md.format(c0 * 60000) + '–' + md.format(c1 * 60000) +
     ', διακομιδές ' + md.format(t0 * 60000) + '–' + md.format(t1 * 60000) + '.';
-  for (const [id, k] of [['col-pt', 'c'], ['col-fatal', 'c'], ['col-ped', 'c'], ['tra-pt', 't']]) {
+  for (const [id, k] of [['col-pt', 'c'], ['col-icon', 'c'], ['tra-pt', 't']]) {
     map.on('click', id, (e) => popup(k, e));
     map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');

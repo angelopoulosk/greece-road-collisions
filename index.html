@@ -168,11 +168,11 @@ function addLayers(id, color, deep) {
 }
 
 // Marked collisions get an emoji icon instead of a dot once individual points are visible.
-// Driver and vehicle causes show 🚙 plus their own emoji (📱 🍾 🚦 💨 🛑, or 💀 for other Fatal Five
-// causes); road and weather causes show 🚙🌧️; pedestrian causes show 🚶‍♀️.
+// Driver and vehicle causes show 🚙 plus their own emoji (📱 🍾 🚦 💨 🛑), with 💀 in front for Fatal Five
+// causes; road and weather causes show 🚙🌧️; pedestrian causes show 🚶‍♀️.
 const MAP_ICONS = [];   // filled from the causes in the data
 const iconFor = (name, fatal) =>
-  isDriver(name) ? '🚙' + (CAUSE_ICON[name] || (fatal ? '💀' : '')) :
+  isDriver(name) ? (fatal ? '💀' : '') + '🚙' + (CAUSE_ICON[name] || '') :
   name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' :
   name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚙🌧️' :
   name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '🚙⚖️' : '';

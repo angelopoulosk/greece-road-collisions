@@ -107,7 +107,7 @@
   <p class="foot">
     <b>Πηγή δεδομένων:</b> <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">Χάρτης Τροχαίων Συγκρούσεων, accidents.maps.gov.gr</a>
     (Υπουργείο Ψηφιακής Διακυβέρνησης, Υπουργείο Προστασίας του Πολίτη, Υπουργείο Υποδομών και Μεταφορών). Ανεπίσημο αντίγραφο, λήψη 13/11/2026. <span id="range"></span>
-    🚨 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚗 οδηγός/όχημα · 🚶‍♀️ πεζός · 🚗☁️ οδός &amp; καιρός · ⚖️ υπό εκδίκαση.
+    🚨 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚗 οδηγός/όχημα · 🚶‍♀️ πεζός · 🚗🌧️ οδός &amp; καιρός · ⚖️ υπό εκδίκαση.
     Κάντε ζουμ και κλικ σε ένα σημείο για λεπτομέρειες.
     <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
   </p>
@@ -191,7 +191,7 @@ function addIconLayer(id, image, mark, k = 1) {
 function addSirenLayer() {
   emojiImage('siren', '🚨'); emojiImage('walker', '🚶‍♀️');
   addIconLayer('col-fatal', 'siren', 1);
-  addIconLayer('col-ped', 'walker', 2, 1.5);   // the walking glyph is narrow, so draw it larger
+  addIconLayer('col-ped', 'walker', 2, 2);   // the walking glyph is narrow, so draw it larger
 }
 
 function refresh() {
@@ -247,9 +247,18 @@ const isDriver = (name) => name.startsWith('ΟΔΗΓΟΣ-') || name.startsWith('
 const groupIcon = (name) =>
   isDriver(name) ? '🚗' :
   name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' :
-  name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚗☁️' :
+  name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚗🌧️' :
   name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '⚖️' : '';
-const causeLabel = (d, i) => ((d.isFatal[i] ? '🚨' : '') + groupIcon(d.causes[i]) + ' ' + d.causes[i]).trim();
+// Extra marker for specific causes.
+const CAUSE_ICON = {
+  'ΟΔΗΓΟΣ-ΑΠΟΣΠΑΣΗ ΤΗΣ ΠΡΟΣΟΧΗΣ ΤΟΥ ΟΔΗΓΟΥ': '📱',
+  'ΟΔΗΓΟΣ-ΟΔΗΓΗΣΗ ΣΕ ΚΑΤΑΣΤΑΣΗ ΜΕΘΗΣ': '🍾',
+  'ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΣΗΜΑΤΟΔΟΤΗ': '🚦',
+  'ΟΔΗΓΟΣ-ΥΠΕΡΒΟΛΙΚΗ ΤΑΧΥΤΗΤΑ ΓΕΝΙΚΩΣ': '💨',
+  'ΟΔΗΓΟΣ-ΛΟΙΠΕΣ ΠΑΡΑΒΙΑΣΕΙΣ ΣΗΜΑΝΣΕΩΝ ΕΝ ΓΕΝΕΙ': '🛑',
+  'ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΠΡΟΤΕΡΑΙΟΤΗΤΑΣ ΓΕΝΙΚΩΣ': '🛑'
+};
+const causeLabel = (d, i) => ((d.isFatal[i] ? '🚨' : '') + groupIcon(d.causes[i]) + (CAUSE_ICON[d.causes[i]] || '') + ' ' + d.causes[i]).trim();
 
 function buildCauses() {
   const d = DATA.collisions, n = new Array(d.causes.length).fill(0);

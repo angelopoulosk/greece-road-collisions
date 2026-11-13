@@ -120,7 +120,7 @@ function toGeoJSON(d, kind) {
   for (let i = 0; i < n; i++) {
     if (ys.size && !ys.has(d.yr[i])) continue;
     if (kind === 'c' && c >= 0 && d.c[i] !== c) continue;
-    f.push({ type: 'Feature', properties: { i },
+    f.push({ type: 'Feature', properties: { i, f: kind === 'c' && d.isFatal[d.c[i]] ? 1 : 0 },
       geometry: { type: 'Point', coordinates: [d.x[i] / 1e5, d.y[i] / 1e5] } });
   }
   return { type: 'FeatureCollection', features: f };
@@ -138,6 +138,7 @@ function addLayers(id, color) {
       'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.9, 12, 0]
     }});
   map.addLayer({ id: id + '-pt', type: 'circle', source: id, minzoom: 10,
+    filter: ['!=', ['get', 'f'], 1],
     paint: {
       'circle-color': color,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 4, 17, 7],
@@ -145,6 +146,23 @@ function addLayers(id, color) {
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 13, 0, 15, 1],
       'circle-stroke-color': '#0e1116'
     }});
+}
+
+// Fatal Five collisions get a 🚨 marker instead of a dot once individual points are visible.
+function addSirenLayer() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.font = '48px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('🚨', 32, 36);
+  map.addImage('siren', ctx.getImageData(0, 0, 64, 64), { pixelRatio: 2 });
+  map.addLayer({ id: 'col-fatal', type: 'symbol', source: 'col', minzoom: 10,
+    filter: ['==', ['get', 'f'], 1],
+    layout: {
+      'icon-image': 'siren', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.3, 14, 0.6, 17, 0.9]
+    },
+    paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
 }
 
 function refresh() {
@@ -181,7 +199,7 @@ function buildYears() {
 }
 
 // 🚨 marks causes in the “Fatal Five”: speeding, drink/drug driving, careless and distracted driving.
-const causeLabel = (d, i) => (d.fatal.includes(i) ? '🚨 ' : '') + d.causes[i];
+const causeLabel = (d, i) => (d.isFatal[i] ? '🚨 ' : '') + d.causes[i];
 
 function buildCauses() {
   const d = DATA.collisions, n = new Array(d.causes.length).fill(0);
@@ -207,12 +225,14 @@ function popup(kind, e) {
 async function load(name) {
   const d = await (await fetch('data/' + name + '.json')).json();
   d.yr = d.t.map(yearOf);             // year of each record
+  d.fatal = d.fatal || [];
+  d.isFatal = d.causes.map((_, i) => d.fatal.includes(i));
   return d;
 }
 
 Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('load', r))]).then(([c, t]) => {
   DATA.collisions = c; DATA.transports = t;
-  addLayers('tra', TRA); addLayers('col', COL);
+  addLayers('tra', TRA); addLayers('col', COL); addSirenLayer();
   buildYears(); buildCauses();
   const span = (d) => { let a = Infinity, b = -Infinity; for (const m of d.t) { if (m < a) a = m; if (m > b) b = m; } return [a, b]; };
   const md = new Intl.DateTimeFormat('el-GR', { timeZone: 'Europe/Athens', month: '2-digit', year: 'numeric' });
@@ -220,7 +240,7 @@ Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('lo
   document.getElementById('range').textContent =
     'Συγκρούσεις ' + md.format(c0 * 60000) + '–' + md.format(c1 * 60000) +
     ', διακομιδές ' + md.format(t0 * 60000) + '–' + md.format(t1 * 60000) + '.';
-  for (const [id, k] of [['col-pt', 'c'], ['tra-pt', 't']]) {
+  for (const [id, k] of [['col-pt', 'c'], ['col-fatal', 'c'], ['tra-pt', 't']]) {
     map.on('click', id, (e) => popup(k, e));
     map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');

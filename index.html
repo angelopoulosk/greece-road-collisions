@@ -91,6 +91,7 @@
   <p class="foot">
     <b>Πηγή δεδομένων:</b> <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">Χάρτης Τροχαίων Συγκρούσεων, accidents.maps.gov.gr</a>
     (Υπουργείο Ψηφιακής Διακυβέρνησης, Υπουργείο Προστασίας του Πολίτη, Υπουργείο Υποδομών και Μεταφορών). Ανεπίσημο αντίγραφο, λήψη 13/11/2026. <span id="range"></span>
+    🚨 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση).
     Κάντε ζουμ και κλικ σε ένα σημείο για λεπτομέρειες.
     <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
   </p>
@@ -179,13 +180,16 @@ function buildYears() {
   }
 }
 
+// 🚨 marks causes in the “Fatal Five”: speeding, drink/drug driving, careless and distracted driving.
+const causeLabel = (d, i) => (d.fatal.includes(i) ? '🚨 ' : '') + d.causes[i];
+
 function buildCauses() {
   const d = DATA.collisions, n = new Array(d.causes.length).fill(0);
   for (const c of d.c) n[c]++;
   const sel = document.getElementById('cause');
   d.causes.map((name, i) => ({ name, i, n: n[i] })).sort((a, b) => b.n - a.n).forEach(o => {
     const op = document.createElement('option');
-    op.value = o.i; op.textContent = o.name + ' (' + fmt.format(o.n) + ')';
+    op.value = o.i; op.textContent = causeLabel(d, o.i) + ' (' + fmt.format(o.n) + ')';
     sel.appendChild(op);
   });
   sel.onchange = () => { state.cause = +sel.value; refresh(); };
@@ -195,7 +199,7 @@ function popup(kind, e) {
   const d = kind === 'c' ? DATA.collisions : DATA.transports;
   const i = e.features[0].properties.i;
   const when = dfmt.format(new Date(d.t[i] * 60000));
-  const html = '<div class="pop"><b>' + (kind === 'c' ? d.causes[d.c[i]] : 'Διακομιδή') + '</b><br>' +
+  const html = '<div class="pop"><b>' + (kind === 'c' ? causeLabel(d, d.c[i]) : 'Διακομιδή') + '</b><br>' +
     when + '<br><small>' + d.places[d.o[i]] + '</small></div>';
   new maplibregl.Popup({ maxWidth: '280px' }).setLngLat(e.features[0].geometry.coordinates).setHTML(html).addTo(map);
 }

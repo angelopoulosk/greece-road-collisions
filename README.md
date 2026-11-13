@@ -18,7 +18,22 @@ interactive map.
 | `data/transports.csv` / `.xlsx` | 119,897 | 01/10/2020 – 31/12/2024 |
 
 Columns: `id`, `datetime_athens`, `timestamp_utc`, `longitude`, `latitude`, `municipality`,
-`description` (recorded cause, collisions only), `color` (marker colour used by the source map).
+`description` (recorded cause, collisions only), `fatal_five`, `color` (marker colour used by the source map).
+
+### Fatal Five 🚨
+
+Causes that fall under the [Fatal Five](https://www.surreyroadsafe.org.uk/the-fatal-five/) are flagged in the
+`fatal_five` column and shown with 🚨 on the map:
+
+| Fatal Five | Recorded cause in the source |
+|---|---|
+| Speeding | ΟΔΗΓΟΣ-ΥΠΕΡΒΟΛΙΚΗ ΤΑΧΥΤΗΤΑ ΓΕΝΙΚΩΣ |
+| Drink/drug driving | ΟΔΗΓΟΣ-ΟΔΗΓΗΣΗ ΣΕ ΚΑΤΑΣΤΑΣΗ ΜΕΘΗΣ |
+| Distracted driving | ΟΔΗΓΟΣ-ΑΠΟΣΠΑΣΗ ΤΗΣ ΠΡΟΣΟΧΗΣ ΤΟΥ ΟΔΗΓΟΥ |
+| Careless driving | ΟΔΗΓΟΣ-ΑΝΤΙΚΑΝΟΝΙΚΟ ΠΡΟΣΠΕΡΑΣΜΑ, ΟΔΗΓΟΣ-ΜΗ ΤΗΡΗΣΗ ΑΠΟΣΤΑΣΗΣ ΑΣΦΑΛΕΙΑΣ, ΟΔΗΓΟΣ-ΕΠΙΔΕΙΚΤΙΚΟΙ ΕΛΙΓΜΟΙ ΣΤΗ ΜΕΣΗ ΤΗΣ ΟΔΟΥ |
+| Not wearing a seatbelt | no matching cause in the source |
+
+The mapping is this repository's own reading of the source's cause labels.
 
 `data/collisions.json` and `data/transports.json` are compact column files used by the map.
 

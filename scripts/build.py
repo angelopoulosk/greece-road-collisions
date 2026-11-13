@@ -15,7 +15,18 @@ from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 
 ATH = ZoneInfo("Europe/Athens")
-HEAD = ["id", "datetime_athens", "timestamp_utc", "longitude", "latitude", "municipality", "description", "color"]
+HEAD = ["id", "datetime_athens", "timestamp_utc", "longitude", "latitude", "municipality", "description", "fatal_five", "color"]
+
+# Recorded causes that fall under the "Fatal Five" (speeding, drink/drug driving, careless driving,
+# distracted driving, no seatbelt). The source has no seatbelt cause, so four categories appear.
+FATAL_FIVE = {
+    "ΟΔΗΓΟΣ-ΥΠΕΡΒΟΛΙΚΗ ΤΑΧΥΤΗΤΑ ΓΕΝΙΚΩΣ": "speeding",
+    "ΟΔΗΓΟΣ-ΟΔΗΓΗΣΗ ΣΕ ΚΑΤΑΣΤΑΣΗ ΜΕΘΗΣ": "drink_drug_driving",
+    "ΟΔΗΓΟΣ-ΑΠΟΣΠΑΣΗ ΤΗΣ ΠΡΟΣΟΧΗΣ ΤΟΥ ΟΔΗΓΟΥ": "distracted_driving",
+    "ΟΔΗΓΟΣ-ΑΝΤΙΚΑΝΟΝΙΚΟ ΠΡΟΣΠΕΡΑΣΜΑ": "careless_driving",
+    "ΟΔΗΓΟΣ-ΜΗ ΤΗΡΗΣΗ ΑΠΟΣΤΑΣΗΣ ΑΣΦΑΛΕΙΑΣ": "careless_driving",
+    "ΟΔΗΓΟΣ-ΕΠΙΔΕΙΚΤΙΚΟΙ ΕΛΙΓΜΟΙ ΣΤΗ ΜΕΣΗ ΤΗΣ ΟΔΟΥ": "careless_driving",
+}
 NAMES = {"sigrousi": "collisions", "diakomidi": "transports"}
 
 
@@ -39,7 +50,8 @@ def main(raw_path, repo="."):
             w.writerow(HEAD)
             for rid, dt, lon, lat, ota, desc, color in rows:
                 w.writerow([rid, dt.astimezone(ATH).strftime("%Y-%m-%d %H:%M"),
-                            dt.strftime("%Y-%m-%dT%H:%M:%SZ"), lon, lat, ota, desc, color])
+                            dt.strftime("%Y-%m-%dT%H:%M:%SZ"), lon, lat, ota, desc,
+                            FATAL_FIVE.get(desc, ""), color])
 
         # Excel
         wb = Workbook(write_only=True)
@@ -47,7 +59,8 @@ def main(raw_path, repo="."):
         ws.append(HEAD)
         for rid, dt, lon, lat, ota, desc, color in rows:
             ws.append([rid, dt.astimezone(ATH).replace(tzinfo=None),
-                       dt.strftime("%Y-%m-%dT%H:%M:%SZ"), lon, lat, ota, desc, color])
+                       dt.strftime("%Y-%m-%dT%H:%M:%SZ"), lon, lat, ota, desc,
+                       FATAL_FIVE.get(desc, ""), color])
         wb.save(os.path.join(out, name + ".xlsx"))
 
         # compact JSON for the map
@@ -60,6 +73,7 @@ def main(raw_path, repo="."):
             col["c"].append(causes.setdefault(desc, len(causes)))
             col["o"].append(places.setdefault(ota, len(places)))
         col["causes"], col["places"] = list(causes), list(places)
+        col["fatal"] = [i for i, c in enumerate(causes) if c in FATAL_FIVE]
         with open(os.path.join(out, name + ".json"), "w", encoding="utf-8") as f:
             json.dump(col, f, ensure_ascii=False, separators=(",", ":"))
 

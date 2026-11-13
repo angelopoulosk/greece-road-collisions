@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Τροχαίες συγκρούσεις στην Ελλάδα — χάρτης</title>
+<meta name="description" content="Διαδραστικός χάρτης τροχαίων συγκρούσεων και διακομιδών στην Ελλάδα από τον Οκτώβριο 2020, με δεδομένα από το accidents.maps.gov.gr.">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22ee; --line:#2a313c; --text:#e8ecf1; --muted:#8b96a5;
+    --col:#ff6b3d; --tra:#4cc2ff; --accent:#ffd23f;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+  #map{position:absolute;inset:0}
+  .panel{position:absolute;top:12px;left:12px;z-index:5;width:340px;max-width:calc(100vw - 24px);
+    max-height:calc(100vh - 24px);overflow:auto;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:16px 16px 12px;backdrop-filter:blur(6px)}
+  h1{font-size:20px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em}
+  .sub{margin:0 0 2px;font-size:14px;font-style:italic;color:var(--accent);line-height:1.35}
+  .cite{margin:0 0 12px;font-size:11px;color:var(--muted)}
+  .row{margin-top:12px}
+  .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px}
+  .seg{display:flex;gap:6px}
+  .seg label{flex:1;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);
+    border-radius:8px;cursor:pointer;font-size:13px;user-select:none}
+  .seg input{accent-color:var(--accent)}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none}
+  select{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:#0e1116;color:var(--text);font-size:13px}
+  .years{display:flex;align-items:flex-end;gap:4px;height:74px}
+  .yr{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;cursor:pointer;
+    background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:11px}
+  .yr .bar{width:100%;border-radius:3px 3px 0 0;background:#3b4452;min-height:2px}
+  .yr.on .bar{background:var(--accent)}
+  .yr.on{color:var(--text)}
+  .yr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .stat{display:flex;gap:16px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .stat div{flex:1}
+  .stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+  .stat span{font-size:11px;color:var(--muted)}
+  .foot{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.45}
+  .foot a{color:#b9c4d2}
+  #loading{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;
+    background:#0e1116cc;font-size:14px}
+  .maplibregl-popup-content{background:#161b22;color:var(--text);border:1px solid var(--line);border-radius:8px;font-size:13px;line-height:1.4}
+  .maplibregl-popup-tip{border-top-color:#161b22!important;border-bottom-color:#161b22!important}
+  .maplibregl-popup-close-button{color:var(--muted)}
+  .pop small{color:var(--muted)}
+  @media (max-width:600px){.panel{width:auto;right:12px;max-height:52vh}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="loading">Φόρτωση δεδομένων…</div>
+
+<aside class="panel">
+  <h1>Τροχαίες συγκρούσεις στην Ελλάδα</h1>
+  <p class="sub">«Το “ατύχημα” υπονοεί ότι δεν φταίει κανείς.»</p>
+  <p class="cite">— Hot Fuzz (2007)</p>
+
+  <div class="row">
+    <div class="label">Τύπος</div>
+    <div class="seg">
+      <label><input type="checkbox" id="showCol" checked><span class="dot" style="background:var(--col)"></span>Συγκρούσεις</label>
+      <label><input type="checkbox" id="showTra"><span class="dot" style="background:var(--tra)"></span>Διακομιδές</label>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="label">Έτος <span id="yearHint" style="text-transform:none;letter-spacing:0">(όλα)</span></div>
+    <div class="years" id="years"></div>
+  </div>
+
+  <div class="row">
+    <div class="label">Αιτία σύγκρουσης</div>
+    <select id="cause"><option value="-1">Όλες οι αιτίες</option></select>
+  </div>
+
+  <div class="stat">
+    <div><b id="nCol">–</b><span>συγκρούσεις</span></div>
+    <div><b id="nTra">–</b><span>διακομιδές</span></div>
+  </div>
+
+  <p class="foot">
+    Πηγή: <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">accidents.maps.gov.gr</a>
+    (Υπουργείο Ψηφιακής Διακυβέρνησης). <span id="range"></span>
+    Κάντε ζουμ και κλικ σε ένα σημείο για λεπτομέρειες.
+    <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
+  </p>
+</aside>
+
+<script>
+const COL = '#ff6b3d', TRA = '#4cc2ff';
+const state = { years: new Set(), cause: -1, showCol: true, showTra: false };
+let DATA = { collisions: null, transports: null };
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://tiles.openfreemap.org/styles/dark',
+  center: [23.8, 38.4], zoom: 6, minZoom: 4, maxZoom: 18,
+  attributionControl: { compact: true }
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+const fmt = new Intl.NumberFormat('el-GR');
+const dfmt = new Intl.DateTimeFormat('el-GR', { timeZone: 'Europe/Athens', dateStyle: 'medium', timeStyle: 'short' });
+const yearOf = (min) => new Date(min * 60000).getUTCFullYear();
+
+function toGeoJSON(d, kind) {
+  const f = [];
+  const n = d.t.length, ys = state.years, c = state.cause;
+  for (let i = 0; i < n; i++) {
+    if (ys.size && !ys.has(d.yr[i])) continue;
+    if (kind === 'c' && c >= 0 && d.c[i] !== c) continue;
+    f.push({ type: 'Feature', properties: { i },
+      geometry: { type: 'Point', coordinates: [d.x[i] / 1e5, d.y[i] / 1e5] } });
+  }
+  return { type: 'FeatureCollection', features: f };
+}
+
+function addLayers(id, color) {
+  map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: id + '-heat', type: 'heatmap', source: id, maxzoom: 12,
+    paint: {
+      'heatmap-weight': 1,
+      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 4, 0.15, 8, 0.5, 12, 1.2],
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 8, 8, 12, 16],
+      'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(0,0,0,0)', 0.15, color + '55', 0.5, color + 'bb', 1, '#ffffff'],
+      'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.9, 12, 0]
+    }});
+  map.addLayer({ id: id + '-pt', type: 'circle', source: id, minzoom: 10,
+    paint: {
+      'circle-color': color,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 4, 17, 7],
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 0.8],
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 13, 0, 15, 1],
+      'circle-stroke-color': '#0e1116'
+    }});
+}
+
+function refresh() {
+  const c = DATA.collisions, t = DATA.transports;
+  const gc = state.showCol ? toGeoJSON(c, 'c') : { type: 'FeatureCollection', features: [] };
+  const gt = state.showTra ? toGeoJSON(t, 't') : { type: 'FeatureCollection', features: [] };
+  map.getSource('col').setData(gc);
+  map.getSource('tra').setData(gt);
+  document.getElementById('nCol').textContent = state.showCol ? fmt.format(gc.features.length) : '–';
+  document.getElementById('nTra').textContent = state.showTra ? fmt.format(gt.features.length) : '–';
+  document.getElementById('yearHint').textContent =
+    state.years.size ? '(' + [...state.years].sort().join(', ') + ')' : '(όλα)';
+  document.querySelectorAll('.yr').forEach(b => {
+    const on = !state.years.size || state.years.has(+b.dataset.y);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', state.years.has(+b.dataset.y));
+  });
+}
+
+function buildYears() {
+  const counts = {};
+  for (const d of [DATA.collisions, DATA.transports]) for (const y of d.yr) counts[y] = (counts[y] || 0) + 1;
+  const ys = Object.keys(counts).map(Number).sort();
+  const max = Math.max(...Object.values(counts));
+  const el = document.getElementById('years');
+  for (const y of ys) {
+    const b = document.createElement('button');
+    b.className = 'yr on'; b.dataset.y = y; b.type = 'button';
+    b.title = y + ': ' + fmt.format(counts[y]) + ' συμβάντα';
+    b.innerHTML = '<span class="bar" style="height:' + Math.max(3, 100 * counts[y] / max) + '%"></span>' + String(y).slice(2);
+    b.onclick = () => { state.years.has(y) ? state.years.delete(y) : state.years.add(y); refresh(); };
+    el.appendChild(b);
+  }
+}
+
+function buildCauses() {
+  const d = DATA.collisions, n = new Array(d.causes.length).fill(0);
+  for (const c of d.c) n[c]++;
+  const sel = document.getElementById('cause');
+  d.causes.map((name, i) => ({ name, i, n: n[i] })).sort((a, b) => b.n - a.n).forEach(o => {
+    const op = document.createElement('option');
+    op.value = o.i; op.textContent = o.name + ' (' + fmt.format(o.n) + ')';
+    sel.appendChild(op);
+  });
+  sel.onchange = () => { state.cause = +sel.value; refresh(); };
+}
+
+function popup(kind, e) {
+  const d = kind === 'c' ? DATA.collisions : DATA.transports;
+  const i = e.features[0].properties.i;
+  const when = dfmt.format(new Date(d.t[i] * 60000));
+  const html = '<div class="pop"><b>' + (kind === 'c' ? d.causes[d.c[i]] : 'Διακομιδή') + '</b><br>' +
+    when + '<br><small>' + d.places[d.o[i]] + '</small></div>';
+  new maplibregl.Popup({ maxWidth: '280px' }).setLngLat(e.features[0].geometry.coordinates).setHTML(html).addTo(map);
+}
+
+async function load(name) {
+  const d = await (await fetch('data/' + name + '.json')).json();
+  d.yr = d.t.map(yearOf);             // year of each record
+  return d;
+}
+
+Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('load', r))]).then(([c, t]) => {
+  DATA.collisions = c; DATA.transports = t;
+  addLayers('tra', TRA); addLayers('col', COL);
+  buildYears(); buildCauses();
+  const span = (d) => { let a = Infinity, b = -Infinity; for (const m of d.t) { if (m < a) a = m; if (m > b) b = m; } return [a, b]; };
+  const md = new Intl.DateTimeFormat('el-GR', { timeZone: 'Europe/Athens', month: '2-digit', year: 'numeric' });
+  const [c0, c1] = span(c), [t0, t1] = span(t);
+  document.getElementById('range').textContent =
+    'Συγκρούσεις ' + md.format(c0 * 60000) + '–' + md.format(c1 * 60000) +
+    ', διακομιδές ' + md.format(t0 * 60000) + '–' + md.format(t1 * 60000) + '.';
+  for (const [id, k] of [['col-pt', 'c'], ['tra-pt', 't']]) {
+    map.on('click', id, (e) => popup(k, e));
+    map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
+  }
+  document.getElementById('showCol').onchange = (e) => { state.showCol = e.target.checked; refresh(); };
+  document.getElementById('showTra').onchange = (e) => { state.showTra = e.target.checked; refresh(); };
+  refresh();
+  document.getElementById('loading').remove();
+}).catch(err => { document.getElementById('loading').textContent = 'Σφάλμα φόρτωσης: ' + err.message; });
+</script>
+</body>
+</html>

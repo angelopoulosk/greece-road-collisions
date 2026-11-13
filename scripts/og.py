@@ -7,7 +7,7 @@ BG = (236, 237, 239)
 x0, x1, y0, y1 = 19.3, 28.4, 34.7, 41.9
 k = math.cos(math.radians(38.3))
 
-def draw_map(img, box, blur=5, gain=9):
+def draw_map(img, box, blur=5, gain=9, glow_c=(255, 107, 61), core_c=(122, 21, 0)):
     W, H = img.size
     mw, mh = (x1 - x0) * k, (y1 - y0)
     s = min((box[2] - box[0]) / mw, (box[3] - box[1]) / mh)
@@ -19,27 +19,33 @@ def draw_map(img, box, blur=5, gain=9):
         hd.point((ox + (x / 1e5 - x0) * k * s, oy + (y1 - y / 1e5) * s), fill=255)
     glow = heat.filter(ImageFilter.GaussianBlur(blur)).point(lambda v: min(255, int(v * gain * 0.55)))
     core = heat.filter(ImageFilter.GaussianBlur(max(0.8, blur / 4))).point(lambda v: min(255, v * 5))
-    img.paste(Image.new('RGB', (W, H), (255, 107, 61)), (0, 0), glow)
-    img.paste(Image.new('RGB', (W, H), (122, 21, 0)), (0, 0), core)
+    img.paste(Image.new('RGB', (W, H), glow_c), (0, 0), glow)
+    img.paste(Image.new('RGB', (W, H), core_c), (0, 0), core)
 
-# share card 1200x630
+# share card 1200x630; everything sits in the central 600px so side-cropped previews keep it
 W, H = 1200, 630
-img = Image.new('RGB', (W, H), BG)
-draw_map(img, (630, 24, 1176, 606))
+DARK = (22, 27, 34)
+img = Image.new('RGB', (W, H), DARK)
+draw_map(img, (425, 196, 775, 548), blur=4, gain=10, glow_c=(190, 40, 10), core_c=(255, 150, 80))
 dr = ImageDraw.Draw(img)
-dr.rounded_rectangle((40, 40, 600, 590), radius=28, fill=(22, 27, 34))
-title = ImageFont.truetype(F + 'Inter-Bold.otf', 72)
-sub = ImageFont.truetype(F + 'Inter-Regular.otf', 32)
-stat = ImageFont.truetype(F + 'Inter-SemiBold.otf', 30)
-small = ImageFont.truetype(F + 'Inter-Regular.otf', 21)
-dr.text((84, 86), 'Δεν είναι', font=title, fill=(232, 236, 241))
-dr.text((84, 166), 'ατύχημα', font=title, fill=(255, 210, 63))
-for i, line in enumerate(['Τροχαίες συγκρούσεις και', 'διακομιδές στην Ελλάδα,', '2020–2025']):
-    dr.text((84, 276 + 42 * i), line, font=sub, fill=(185, 196, 210))
-dr.line((84, 424, 556, 424), fill=(42, 49, 60), width=2)
-dr.text((84, 444), '84.331 συγκρούσεις', font=stat, fill=(255, 107, 61))
-dr.text((84, 484), '119.897 διακομιδές', font=stat, fill=(76, 194, 255))
-dr.text((84, 548), 'Πηγή: accidents.maps.gov.gr', font=small, fill=(120, 130, 142))
+title = ImageFont.truetype(F + 'Inter-Bold.otf', 62)
+sub = ImageFont.truetype(F + 'Inter-Regular.otf', 26)
+stat = ImageFont.truetype(F + 'Inter-SemiBold.otf', 24)
+small = ImageFont.truetype(F + 'Inter-Regular.otf', 18)
+cx = W // 2
+tw1 = dr.textlength('Δεν είναι ', font=title); tw2 = dr.textlength('ατύχημα', font=title)
+x = cx - (tw1 + tw2) / 2
+dr.text((x, 40), 'Δεν είναι ', font=title, fill=(232, 236, 241))
+dr.text((x + tw1, 40), 'ατύχημα', font=title, fill=(255, 210, 63))
+dr.text((cx, 120), 'Τροχαίες συγκρούσεις και διακομιδές', font=sub, fill=(185, 196, 210), anchor='mt')
+dr.text((cx, 154), 'στην Ελλάδα, 2020–2025', font=sub, fill=(185, 196, 210), anchor='mt')
+a, b = '84.331 συγκρούσεις', '119.897 διακομιδές'
+gap = 28
+wa, wb = dr.textlength(a, font=stat), dr.textlength(b, font=stat)
+x = cx - (wa + gap + wb) / 2
+dr.text((x, 568), a, font=stat, fill=(255, 107, 61))
+dr.text((x + wa + gap, 568), b, font=stat, fill=(76, 194, 255))
+dr.text((cx, 606), 'Πηγή: accidents.maps.gov.gr', font=small, fill=(120, 130, 142), anchor='mt')
 img.save(f'{repo}/og.png', optimize=True)
 
 # square icon: map only

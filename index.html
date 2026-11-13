@@ -74,14 +74,47 @@
   .maplibregl-popup-tip{border-top-color:#161b22!important;border-bottom-color:#161b22!important}
   .maplibregl-popup-close-button{color:var(--muted)}
   .pop small{color:var(--muted)}
-  @media (max-width:600px){.panel{width:auto;right:12px;max-height:52vh}}
+  .sheet-toggle{display:none}
+  /* Phones: the panel becomes a bottom sheet. Collapsed it is a slim bar; tapping it opens the filters. */
+  @media (max-width:700px){
+    .panel{top:auto;left:0;right:0;bottom:0;width:100%;max-width:none;max-height:78vh;max-height:78dvh;
+      border-radius:16px 16px 0 0;border-width:1px 0 0;padding:0;display:flex;flex-direction:column;overflow:hidden;
+      padding-bottom:env(safe-area-inset-bottom)}
+    .sheet-toggle{display:grid;grid-template-columns:1fr auto;grid-template-areas:"grab grab" "title cta" "count cta";
+      align-items:center;column-gap:12px;width:100%;padding:6px 16px 10px;background:none;border:0;color:var(--text);
+      font:inherit;text-align:left;cursor:pointer;flex:none}
+    .grab{grid-area:grab;justify-self:center;width:40px;height:4px;border-radius:2px;background:#3b4452;margin-bottom:6px}
+    .st-title{grid-area:title;font-size:17px;font-weight:700}
+    .st-title em{font-style:normal;color:var(--accent)}
+    .st-count{grid-area:count;font-size:12px;color:var(--muted)}
+    .st-cta{grid-area:cta;font-size:13px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;white-space:nowrap}
+    .st-close{display:none}
+    .panel:not(.collapsed) .st-open{display:none}
+    .panel:not(.collapsed) .st-close{display:inline}
+    .sheet-body{overflow:auto;padding:0 16px 16px;-webkit-overflow-scrolling:touch}
+    .panel.collapsed .sheet-body{display:none}
+    .hero{width:100%;margin:0 0 10px;border-radius:10px;max-height:150px;object-fit:cover}
+    .sheet-body h1{display:none}
+    .years{height:80px}
+    .causes{max-height:none}
+    .quick button{padding:8px 6px;font-size:13px}
+    .seg label{padding:10px}
+    .maplibregl-ctrl-bottom-right{bottom:72px}
+  }
 </style>
 </head>
 <body>
 <div id="map"></div>
 <div id="loading">Φόρτωση δεδομένων…</div>
 
-<aside class="panel">
+<aside class="panel collapsed" id="panel">
+  <button type="button" class="sheet-toggle" id="sheetToggle" aria-expanded="false" aria-controls="sheetBody">
+    <span class="grab"></span>
+    <span class="st-title">Δεν είναι <em>ατύχημα</em></span>
+    <span class="st-count" id="stCount"></span>
+    <span class="st-cta"><span class="st-open">Φίλτρα ▲</span><span class="st-close">Χάρτης ▼</span></span>
+  </button>
+  <div class="sheet-body" id="sheetBody">
   <img class="hero" src="header.png" alt="" onerror="if(this.dataset.alt){this.remove()}else{this.dataset.alt=1;this.src='header.jpg'}">
   <h1>Δεν είναι ατύχημα</h1>
   <p class="lede">Τροχαίες συγκρούσεις και διακομιδές στην Ελλάδα, 2020–2025</p>
@@ -123,6 +156,7 @@
     Κάντε ζουμ και κλικ σε ένα σημείο για λεπτομέρειες.
     <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
   </p>
+  </div>
 </aside>
 
 <script>
@@ -136,6 +170,10 @@ const map = new maplibregl.Map({
   center: [23.8, 38.4], zoom: 6, minZoom: 4, maxZoom: 18,
   attributionControl: { compact: true }
 });
+// On phones, fit the whole country above the bottom bar.
+if (window.matchMedia('(max-width:700px)').matches) {
+  map.fitBounds([[19.3, 34.7], [28.3, 41.8]], { padding: { top: 16, bottom: 80, left: 8, right: 44 }, duration: 0 });
+}
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 map.addControl(new maplibregl.GeolocateControl({
   positionOptions: { enableHighAccuracy: true },
@@ -213,6 +251,12 @@ function addSirenLayer() {
     paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
 }
 
+const panelEl = document.getElementById('panel');
+document.getElementById('sheetToggle').onclick = () => {
+  const open = panelEl.classList.toggle('collapsed') === false;
+  document.getElementById('sheetToggle').setAttribute('aria-expanded', open);
+};
+
 function refresh() {
   updateYears();
   const c = DATA.collisions, t = DATA.transports;
@@ -222,6 +266,10 @@ function refresh() {
   map.getSource('tra').setData(gt);
   document.getElementById('nCol').textContent = state.showCol ? fmt.format(gc.features.length) : '–';
   document.getElementById('nTra').textContent = state.showTra ? fmt.format(gt.features.length) : '–';
+  document.getElementById('stCount').textContent = [
+    state.showCol ? fmt.format(gc.features.length) + ' συγκρούσεις' : '',
+    state.showTra ? fmt.format(gt.features.length) + ' διακομιδές' : ''
+  ].filter(Boolean).join(' · ');
   document.getElementById('yearHint').textContent =
     state.years.size ? '(' + [...state.years].sort().join(', ') + ')' : '(όλα)';
   document.querySelectorAll('.yr').forEach(b => {

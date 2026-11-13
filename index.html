@@ -185,23 +185,33 @@ const fmt = new Intl.NumberFormat('el-GR');
 const dfmt = new Intl.DateTimeFormat('el-GR', { timeZone: 'Europe/Athens', dateStyle: 'medium', timeStyle: 'short' });
 const yearOf = (min) => new Date(min * 60000).getUTCFullYear();
 
+// Records at the same spot with the same cause become one feature; d.groups[g] lists their indexes.
 function toGeoJSON(d, kind) {
-  const f = [];
-  const n = d.t.length, ys = state.years, cs = state.causes;
-  for (let i = 0; i < n; i++) {
+  const ys = state.years, cs = state.causes, byKey = new Map();
+  d.groups = [];
+  let total = 0;
+  for (let i = 0; i < d.t.length; i++) {
     if (ys.size && !ys.has(d.yr[i])) continue;
     if (kind === 'c' && !cs.has(d.c[i])) continue;
-    f.push({ type: 'Feature', properties: { i, f: kind === 'c' ? d.mark[d.c[i]] : 0 },
-      geometry: { type: 'Point', coordinates: [d.x[i] / 1e5, d.y[i] / 1e5] } });
+    total++;
+    const key = d.x[i] + ',' + d.y[i] + (kind === 'c' ? ',' + d.c[i] : '');
+    let g = byKey.get(key);
+    if (g === undefined) { g = d.groups.length; byKey.set(key, g); d.groups.push([]); }
+    d.groups[g].push(i);
   }
-  return { type: 'FeatureCollection', features: f };
+  const features = d.groups.map((ix, g) => {
+    const i = ix[0];
+    return { type: 'Feature', properties: { g, n: ix.length, f: kind === 'c' ? d.mark[d.c[i]] : 0, k: kind },
+      geometry: { type: 'Point', coordinates: [d.x[i] / 1e5, d.y[i] / 1e5] } };
+  });
+  return { type: 'FeatureCollection', features, total };
 }
 
 function addLayers(id, color, deep) {
   map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: id + '-heat', type: 'heatmap', source: id, maxzoom: 12,
     paint: {
-      'heatmap-weight': 1,
+      'heatmap-weight': ['get', 'n'],
       'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 4, 0.15, 8, 0.5, 12, 1.2],
       'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 8, 8, 12, 16],
       'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
@@ -209,7 +219,7 @@ function addLayers(id, color, deep) {
       'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.9, 12, 0]
     }});
   map.addLayer({ id: id + '-pt', type: 'circle', source: id, minzoom: 10,
-    filter: ['==', ['get', 'f'], 0],
+    filter: ['all', ['==', ['get', 'f'], 0], ['==', ['get', 'n'], 1]],
     paint: {
       'circle-color': color,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 4, 17, 7],
@@ -229,46 +239,105 @@ const iconFor = (name, fatal) =>
   name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚙🌧️' :
   name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '🚙⚖️' : '';
 const glyphs = (s) => [...new Intl.Segmenter().segment(s)].length;
-function emojiImage(name, emoji) {
-  const n = glyphs(emoji), big = emoji === '🚶‍♀️';   // the walking glyph is narrow, so draw it larger
-  const size = big ? 96 : 48, w = n * 56 + 8, h = big ? 104 : 64;
+const BLOOD = '#8a0303';
+// Image ids: '<kind><mark>_<count>', e.g. 'c3_12'. Mark 0 is a plain dot. Drawn the first time the map asks.
+function drawMarker(id) {
+  const m = /^([ct])(\d+)_(\d+)$/.exec(id);
+  if (!m) return;
+  const kind = m[1], mark = +m[2], n = +m[3];
+  const emoji = mark ? MAP_ICONS[mark - 1] : '';
+  const big = emoji === '🚶‍♀️';                       // the walking glyph is narrow, so draw it larger
+  const gw = emoji ? glyphs(emoji) * 56 + 8 : 40;     // width of the emoji (or dot) area
+  const gh = big ? 104 : 64;
+  const badge = n > 1, label = String(n), br = label.length > 2 ? 30 : 26;
+  const padR = badge ? br : 0, padT = badge ? 14 : 0;
+  const w = gw + padR, h = gh + padT;
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const ctx = c.getContext('2d');
-  ctx.font = size + 'px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(emoji, w / 2, h / 2 + 4);
-  map.addImage(name, ctx.getImageData(0, 0, w, h), { pixelRatio: 2 });
+  if (emoji) {
+    ctx.font = (big ? 96 : 48) + 'px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, gw / 2, padT + gh / 2 + 4);
+  } else {
+    ctx.beginPath(); ctx.arc(gw / 2, padT + gh / 2, 13, 0, 2 * Math.PI);
+    ctx.fillStyle = kind === 'c' ? COL : TRA; ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+  }
+  if (badge) {
+    const bx = w - br - 1, by = br + 1;
+    ctx.beginPath(); ctx.arc(bx, by, br, 0, 2 * Math.PI);
+    ctx.fillStyle = BLOOD; ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold ' + (label.length > 2 ? 24 : 30) + 'px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(label, bx, by + 2);
+  }
+  map.addImage(id, ctx.getImageData(0, 0, w, h), { pixelRatio: 2 });
 }
+map.on('styleimagemissing', (e) => drawMarker(e.id));
+
+const ICON_SIZE = ['interpolate', ['linear'], ['zoom'], 10, 0.35, 14, 0.75, 17, 1];
+const imageId = ['concat', ['get', 'k'], ['to-string', ['get', 'f']], '_', ['to-string', ['get', 'n']]];
 function addSirenLayer() {
-  MAP_ICONS.forEach((e, k) => emojiImage('icon' + (k + 1), e));
+  // grouped transports (blue dot + count)
+  map.addLayer({ id: 'tra-icon', type: 'symbol', source: 'tra', minzoom: 10,
+    filter: ['>', ['get', 'n'], 1],
+    layout: { 'icon-image': imageId, 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ICON_SIZE },
+    paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
+  // collisions with a category icon, and grouped uncategorised ones (dot + count)
   map.addLayer({ id: 'col-icon', type: 'symbol', source: 'col', minzoom: 10,
-    filter: ['>', ['get', 'f'], 0],
+    filter: ['any', ['>', ['get', 'f'], 0], ['>', ['get', 'n'], 1]],
     layout: {
-      'icon-image': ['concat', 'icon', ['to-string', ['get', 'f']]],
-      'icon-allow-overlap': true, 'icon-ignore-placement': true,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.3, 14, 0.6, 17, 0.9]
+      'icon-image': imageId, 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ICON_SIZE,
+      'symbol-sort-key': ['get', 'n']            // bigger groups drawn on top
     },
     paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
+  // fan-out of an opened group
+  map.addSource('spider', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'spider-legs', type: 'line', source: 'spider', filter: ['==', ['geometry-type'], 'LineString'],
+    paint: { 'line-color': '#4a5260', 'line-width': 1, 'line-opacity': 0.6 } });
+  map.addLayer({ id: 'spider-icon', type: 'symbol', source: 'spider', filter: ['==', ['geometry-type'], 'Point'],
+    layout: { 'icon-image': imageId, 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ICON_SIZE } });
 }
 
-const panelEl = document.getElementById('panel');
-document.getElementById('sheetToggle').onclick = () => {
-  const open = panelEl.classList.toggle('collapsed') === false;
-  document.getElementById('sheetToggle').setAttribute('aria-expanded', open);
-};
+// Open a group: place its records on a sunflower spiral around the spot, linked by thin legs.
+let spiderOpen = null;
+function closeSpider() {
+  if (!spiderOpen) return;
+  spiderOpen = null;
+  map.getSource('spider').setData({ type: 'FeatureCollection', features: [] });
+}
+function openSpider(kind, g, center) {
+  closeSpider();
+  const d = kind === 'c' ? DATA.collisions : DATA.transports;
+  const ix = d.groups[g], p = map.project(center);
+  const step = 17 * Math.max(0.6, Math.min(1.3, map.getZoom() / 14));
+  const features = [];
+  ix.forEach((i, k) => {
+    const r = step * (1.4 + Math.sqrt(k + 1)), a = k * 2.39996 - Math.PI / 2;
+    const ll = map.unproject([p.x + r * Math.cos(a), p.y + r * Math.sin(a)]).toArray();
+    features.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [center, ll] } });
+    features.push({ type: 'Feature', properties: { i, k: kind, n: 1, f: kind === 'c' ? d.mark[d.c[i]] : 0 },
+      geometry: { type: 'Point', coordinates: ll } });
+  });
+  map.getSource('spider').setData({ type: 'FeatureCollection', features });
+  spiderOpen = { kind, g };
+}
 
 function refresh() {
+  closeSpider();
   updateYears();
   const c = DATA.collisions, t = DATA.transports;
-  const gc = state.showCol ? toGeoJSON(c, 'c') : { type: 'FeatureCollection', features: [] };
-  const gt = state.showTra ? toGeoJSON(t, 't') : { type: 'FeatureCollection', features: [] };
+  const empty = { type: 'FeatureCollection', features: [], total: 0 };
+  const gc = state.showCol ? toGeoJSON(c, 'c') : empty;
+  const gt = state.showTra ? toGeoJSON(t, 't') : empty;
   map.getSource('col').setData(gc);
   map.getSource('tra').setData(gt);
-  document.getElementById('nCol').textContent = state.showCol ? fmt.format(gc.features.length) : '–';
-  document.getElementById('nTra').textContent = state.showTra ? fmt.format(gt.features.length) : '–';
+  document.getElementById('nCol').textContent = state.showCol ? fmt.format(gc.total) : '–';
+  document.getElementById('nTra').textContent = state.showTra ? fmt.format(gt.total) : '–';
   document.getElementById('stCount').textContent = [
-    state.showCol ? fmt.format(gc.features.length) + ' συγκρούσεις' : '',
-    state.showTra ? fmt.format(gt.features.length) + ' διακομιδές' : ''
+    state.showCol ? fmt.format(gc.total) + ' συγκρούσεις' : '',
+    state.showTra ? fmt.format(gt.total) + ' διακομιδές' : ''
   ].filter(Boolean).join(' · ');
   document.getElementById('yearHint').textContent =
     state.years.size ? '(' + [...state.years].sort().join(', ') + ')' : '(όλα)';
@@ -358,13 +427,12 @@ function buildCauses() {
   });
 }
 
-function popup(kind, e) {
+function popup(kind, i, lngLat) {
   const d = kind === 'c' ? DATA.collisions : DATA.transports;
-  const i = e.features[0].properties.i;
   const when = dfmt.format(new Date(d.t[i] * 60000));
   const html = '<div class="pop"><b>' + (kind === 'c' ? causeLabel(d, d.c[i]) : 'Διακομιδή') + '</b><br>' +
     when + '<br><small>' + d.places[d.o[i]] + '</small></div>';
-  new maplibregl.Popup({ maxWidth: '280px' }).setLngLat(e.features[0].geometry.coordinates).setHTML(html).addTo(map);
+  new maplibregl.Popup({ maxWidth: '280px' }).setLngLat(lngLat).setHTML(html).addTo(map);
 }
 
 async function load(name) {
@@ -391,11 +459,26 @@ Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('lo
   document.getElementById('range').textContent =
     'Συγκρούσεις ' + md.format(c0 * 60000) + '–' + md.format(c1 * 60000) +
     ', διακομιδές ' + md.format(t0 * 60000) + '–' + md.format(t1 * 60000) + '.';
-  for (const [id, k] of [['col-pt', 'c'], ['col-icon', 'c'], ['tra-pt', 't']]) {
-    map.on('click', id, (e) => popup(k, e));
-    map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
-  }
+  const CLICKABLE = ['spider-icon', 'col-icon', 'col-pt', 'tra-icon', 'tra-pt'];
+  const hit = (pt) => map.queryRenderedFeatures(pt, { layers: CLICKABLE.filter(l => map.getLayer(l)) })
+    .sort((a, b) => CLICKABLE.indexOf(a.layer.id) - CLICKABLE.indexOf(b.layer.id))[0];
+  map.on('click', (e) => {
+    const f = hit(e.point);
+    if (!f) { closeSpider(); return; }
+    const pr = f.properties, at = f.geometry.coordinates;
+    if (f.layer.id === 'spider-icon') return popup(pr.k, pr.i, at);
+    const kind = f.layer.id.startsWith('col') ? 'c' : 't';
+    const d = kind === 'c' ? DATA.collisions : DATA.transports;
+    if (pr.n > 1) {
+      if (spiderOpen && spiderOpen.kind === kind && spiderOpen.g === pr.g) closeSpider();
+      else openSpider(kind, pr.g, at);
+    } else {
+      closeSpider();
+      popup(kind, d.groups[pr.g][0], at);
+    }
+  });
+  map.on('mousemove', (e) => { map.getCanvas().style.cursor = hit(e.point) ? 'pointer' : ''; });
+  map.on('zoomstart', closeSpider);
   document.getElementById('showCol').onchange = (e) => { state.showCol = e.target.checked; refresh(); };
   document.getElementById('showTra').onchange = (e) => { state.showTra = e.target.checked; refresh(); };
   refresh();

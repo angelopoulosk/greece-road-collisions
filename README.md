@@ -35,7 +35,7 @@ Causes that fall under the [Fatal Five](https://www.surreyroadsafe.org.uk/the-fa
 
 The mapping is this repository's own reading of the source's cause labels.
 
-On the map, causes also carry a group marker: 🚗 driver, 🚶‍♀️ pedestrian, 🚗☁️ road and weather, ⚖️ cause pending trial.
+On the map, causes also carry a group marker: 🚗 driver and vehicle, 🚶‍♀️ pedestrian, 🚗☁️ road and weather, ⚖️ cause pending trial.
 
 `data/collisions.json` and `data/transports.json` are compact column files used by the map.
 

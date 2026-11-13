@@ -34,6 +34,7 @@
   select{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:#0e1116;color:var(--text);font-size:13px}
   .quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
   .quick button{flex:1 0 auto;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:#0e1116;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
+  .quick button.big{flex-basis:100%;font-weight:600}
   .quick button:hover{border-color:var(--accent)}
   .causes{max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:#0e1116}
   .causes label{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12px;line-height:1.3;cursor:pointer}
@@ -90,9 +91,9 @@
     <div class="quick">
       <button type="button" data-pick="all">Όλες</button>
       <button type="button" data-pick="none">Καμία</button>
-      <button type="button" data-pick="fatal">🚨 Fatal 5</button>
       <button type="button" data-pick="driver">🚗 Οδηγός</button>
       <button type="button" data-pick="ped">🚶‍♀️ Πεζός</button>
+      <button type="button" data-pick="fatal" class="big">🚨 Fatal 5 🚗</button>
     </div>
     <div class="causes" id="causes"></div>
   </div>
@@ -105,7 +106,7 @@
   <p class="foot">
     <b>Πηγή δεδομένων:</b> <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">Χάρτης Τροχαίων Συγκρούσεων, accidents.maps.gov.gr</a>
     (Υπουργείο Ψηφιακής Διακυβέρνησης, Υπουργείο Προστασίας του Πολίτη, Υπουργείο Υποδομών και Μεταφορών). Ανεπίσημο αντίγραφο, λήψη 13/11/2026. <span id="range"></span>
-    🚨 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚗 οδηγός · 🚶‍♀️ πεζός · 🚗☁️ οδός &amp; καιρός · ⚖️ υπό εκδίκαση.
+    🚨 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚗 οδηγός/όχημα · 🚶‍♀️ πεζός · 🚗☁️ οδός &amp; καιρός · ⚖️ υπό εκδίκαση.
     Κάντε ζουμ και κλικ σε ένα σημείο για λεπτομέρειες.
     <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
   </p>
@@ -213,9 +214,11 @@ function buildYears() {
 }
 
 // 🚨 marks causes in the “Fatal Five”: speeding, drink/drug driving, careless and distracted driving.
+// Vehicle causes (ΟΧΗΜΑ-) count as driver causes.
+const isDriver = (name) => name.startsWith('ΟΔΗΓΟΣ-') || name.startsWith('ΟΧΗΜΑ-');
 // Group marker by who or what the recorded cause refers to.
 const groupIcon = (name) =>
-  name.startsWith('ΟΔΗΓΟΣ-') ? '🚗' :
+  isDriver(name) ? '🚗' :
   name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' :
   name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚗☁️' :
   name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '⚖️' : '';
@@ -228,7 +231,7 @@ function buildCauses() {
   const picks = {
     all: () => true, none: () => false,
     fatal: (i) => d.isFatal[i],
-    driver: (i) => d.causes[i].startsWith('ΟΔΗΓΟΣ-'),
+    driver: (i) => isDriver(d.causes[i]),
     ped: (i) => d.causes[i].startsWith('ΠΕΖΟΣ-')
   };
   d.causes.forEach((_, i) => { if (d.isFatal[i]) state.causes.add(i); });   // default: Fatal Five only

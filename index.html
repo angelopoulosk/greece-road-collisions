@@ -173,19 +173,19 @@ function emojiImage(name, emoji) {
   ctx.fillText(emoji, 32, 36);
   map.addImage(name, ctx.getImageData(0, 0, 64, 64), { pixelRatio: 2 });
 }
-function addIconLayer(id, image, mark) {
+function addIconLayer(id, image, mark, k = 1) {
   map.addLayer({ id, type: 'symbol', source: 'col', minzoom: 10,
     filter: ['==', ['get', 'f'], mark],
     layout: {
       'icon-image': image, 'icon-allow-overlap': true, 'icon-ignore-placement': true,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.3, 14, 0.6, 17, 0.9]
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.3 * k, 14, 0.6 * k, 17, 0.9 * k]
     },
     paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
 }
 function addSirenLayer() {
   emojiImage('siren', '🚨'); emojiImage('walker', '🚶‍♀️');
   addIconLayer('col-fatal', 'siren', 1);
-  addIconLayer('col-ped', 'walker', 2);
+  addIconLayer('col-ped', 'walker', 2, 1.5);   // the walking glyph is narrow, so draw it larger
 }
 
 function refresh() {

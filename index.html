@@ -135,7 +135,7 @@ function toGeoJSON(d, kind) {
   for (let i = 0; i < n; i++) {
     if (ys.size && !ys.has(d.yr[i])) continue;
     if (kind === 'c' && !cs.has(d.c[i])) continue;
-    f.push({ type: 'Feature', properties: { i, f: kind === 'c' && d.isFatal[d.c[i]] ? 1 : 0 },
+    f.push({ type: 'Feature', properties: { i, f: kind === 'c' ? d.mark[d.c[i]] : 0 },
       geometry: { type: 'Point', coordinates: [d.x[i] / 1e5, d.y[i] / 1e5] } });
   }
   return { type: 'FeatureCollection', features: f };
@@ -153,7 +153,7 @@ function addLayers(id, color) {
       'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.9, 12, 0]
     }});
   map.addLayer({ id: id + '-pt', type: 'circle', source: id, minzoom: 10,
-    filter: ['!=', ['get', 'f'], 1],
+    filter: ['==', ['get', 'f'], 0],
     paint: {
       'circle-color': color,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 4, 17, 7],
@@ -163,21 +163,29 @@ function addLayers(id, color) {
     }});
 }
 
-// Fatal Five collisions get a 🚨 marker instead of a dot once individual points are visible.
-function addSirenLayer() {
+// Marked collisions get an emoji icon instead of a dot once individual points are visible:
+// 1 = 🚨 Fatal Five cause, 2 = 🚶‍♀️ pedestrian cause.
+function emojiImage(name, emoji) {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const ctx = c.getContext('2d');
   ctx.font = '48px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('🚨', 32, 36);
-  map.addImage('siren', ctx.getImageData(0, 0, 64, 64), { pixelRatio: 2 });
-  map.addLayer({ id: 'col-fatal', type: 'symbol', source: 'col', minzoom: 10,
-    filter: ['==', ['get', 'f'], 1],
+  ctx.fillText(emoji, 32, 36);
+  map.addImage(name, ctx.getImageData(0, 0, 64, 64), { pixelRatio: 2 });
+}
+function addIconLayer(id, image, mark) {
+  map.addLayer({ id, type: 'symbol', source: 'col', minzoom: 10,
+    filter: ['==', ['get', 'f'], mark],
     layout: {
-      'icon-image': 'siren', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+      'icon-image': image, 'icon-allow-overlap': true, 'icon-ignore-placement': true,
       'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.3, 14, 0.6, 17, 0.9]
     },
     paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
+}
+function addSirenLayer() {
+  emojiImage('siren', '🚨'); emojiImage('walker', '🚶‍♀️');
+  addIconLayer('col-fatal', 'siren', 1);
+  addIconLayer('col-ped', 'walker', 2);
 }
 
 function refresh() {
@@ -269,6 +277,7 @@ async function load(name) {
   d.yr = d.t.map(yearOf);             // year of each record
   d.fatal = d.fatal || [];
   d.isFatal = d.causes.map((_, i) => d.fatal.includes(i));
+  d.mark = d.causes.map((n, i) => d.isFatal[i] ? 1 : n.startsWith('ΠΕΖΟΣ-') ? 2 : 0);
   return d;
 }
 
@@ -282,7 +291,7 @@ Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('lo
   document.getElementById('range').textContent =
     'Συγκρούσεις ' + md.format(c0 * 60000) + '–' + md.format(c1 * 60000) +
     ', διακομιδές ' + md.format(t0 * 60000) + '–' + md.format(t1 * 60000) + '.';
-  for (const [id, k] of [['col-pt', 'c'], ['col-fatal', 'c'], ['tra-pt', 't']]) {
+  for (const [id, k] of [['col-pt', 'c'], ['col-fatal', 'c'], ['col-ped', 'c'], ['tra-pt', 't']]) {
     map.on('click', id, (e) => popup(k, e));
     map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');

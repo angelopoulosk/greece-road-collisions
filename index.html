@@ -32,6 +32,13 @@
   .seg input{accent-color:var(--accent)}
   .dot{width:10px;height:10px;border-radius:50%;flex:none}
   select{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:#0e1116;color:var(--text);font-size:13px}
+  .quick{display:flex;gap:6px;margin-bottom:6px}
+  .quick button{flex:1;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:#0e1116;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
+  .quick button:hover{border-color:var(--accent)}
+  .causes{max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:#0e1116}
+  .causes label{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12px;line-height:1.3;cursor:pointer}
+  .causes input{accent-color:var(--accent);margin:1px 0 0;flex:none}
+  .causes .n{margin-left:auto;padding-left:8px;color:var(--muted);font-variant-numeric:tabular-nums}
   .years{display:flex;align-items:flex-end;gap:4px;height:74px}
   .yr{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;cursor:pointer;
     background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:11px}
@@ -79,8 +86,13 @@
   </div>
 
   <div class="row">
-    <div class="label">Αιτία σύγκρουσης</div>
-    <select id="cause"><option value="-1">Όλες οι αιτίες</option></select>
+    <div class="label">Αιτίες σύγκρουσης</div>
+    <div class="quick">
+      <button type="button" data-pick="all">Όλες</button>
+      <button type="button" data-pick="none">Καμία</button>
+      <button type="button" data-pick="fatal">Μόνο 🚨</button>
+    </div>
+    <div class="causes" id="causes"></div>
   </div>
 
   <div class="stat">
@@ -99,7 +111,7 @@
 
 <script>
 const COL = '#ff6b3d', TRA = '#4cc2ff';
-const state = { years: new Set(), cause: -1, showCol: true, showTra: false };
+const state = { years: new Set(), causes: new Set(), showCol: true, showTra: false };
 let DATA = { collisions: null, transports: null };
 
 const map = new maplibregl.Map({
@@ -116,10 +128,10 @@ const yearOf = (min) => new Date(min * 60000).getUTCFullYear();
 
 function toGeoJSON(d, kind) {
   const f = [];
-  const n = d.t.length, ys = state.years, c = state.cause;
+  const n = d.t.length, ys = state.years, cs = state.causes;
   for (let i = 0; i < n; i++) {
     if (ys.size && !ys.has(d.yr[i])) continue;
-    if (kind === 'c' && c >= 0 && d.c[i] !== c) continue;
+    if (kind === 'c' && !cs.has(d.c[i])) continue;
     f.push({ type: 'Feature', properties: { i, f: kind === 'c' && d.isFatal[d.c[i]] ? 1 : 0 },
       geometry: { type: 'Point', coordinates: [d.x[i] / 1e5, d.y[i] / 1e5] } });
   }
@@ -204,13 +216,26 @@ const causeLabel = (d, i) => (d.isFatal[i] ? '🚨 ' : '') + d.causes[i];
 function buildCauses() {
   const d = DATA.collisions, n = new Array(d.causes.length).fill(0);
   for (const c of d.c) n[c]++;
-  const sel = document.getElementById('cause');
-  d.causes.map((name, i) => ({ name, i, n: n[i] })).sort((a, b) => b.n - a.n).forEach(o => {
-    const op = document.createElement('option');
-    op.value = o.i; op.textContent = causeLabel(d, o.i) + ' (' + fmt.format(o.n) + ')';
-    sel.appendChild(op);
+  const box = document.getElementById('causes');
+  d.causes.forEach((_, i) => state.causes.add(i));
+  d.causes.map((name, i) => ({ i, n: n[i] })).sort((a, b) => b.n - a.n).forEach(o => {
+    const l = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = true; cb.value = o.i;
+    cb.onchange = () => { cb.checked ? state.causes.add(o.i) : state.causes.delete(o.i); refresh(); };
+    const t = document.createElement('span'); t.textContent = causeLabel(d, o.i);
+    const c = document.createElement('span'); c.className = 'n'; c.textContent = fmt.format(o.n);
+    l.append(cb, t, c); box.appendChild(l);
   });
-  sel.onchange = () => { state.cause = +sel.value; refresh(); };
+  document.querySelectorAll('.quick button').forEach(b => b.onclick = () => {
+    const pick = b.dataset.pick;
+    box.querySelectorAll('input').forEach(cb => {
+      const i = +cb.value;
+      cb.checked = pick === 'all' || (pick === 'fatal' && d.isFatal[i]);
+      cb.checked ? state.causes.add(i) : state.causes.delete(i);
+    });
+    refresh();
+  });
 }
 
 function popup(kind, e) {

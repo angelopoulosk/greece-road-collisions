@@ -105,7 +105,7 @@
   <p class="foot">
     <b>Πηγή δεδομένων:</b> <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">Χάρτης Τροχαίων Συγκρούσεων, accidents.maps.gov.gr</a>
     (Υπουργείο Ψηφιακής Διακυβέρνησης, Υπουργείο Προστασίας του Πολίτη, Υπουργείο Υποδομών και Μεταφορών). Ανεπίσημο αντίγραφο, λήψη 13/11/2026. <span id="range"></span>
-    🚨 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚗 οδηγός/όχημα · 🚶‍♀️ πεζός · 🚗🌧️ οδός &amp; καιρός · ⚖️ υπό εκδίκαση.
+    🚨 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚗 οδηγός/όχημα · 🚶‍♀️ πεζός · 🚗🌧️ οδός &amp; καιρός · 🚗⚖️ υπό εκδίκαση.
     Κάντε ζουμ και κλικ σε ένα σημείο για λεπτομέρειες.
     <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
   </p>
@@ -174,7 +174,8 @@ const MAP_ICONS = [];   // filled from the causes in the data
 const iconFor = (name, fatal) =>
   isDriver(name) ? '🚗' + (CAUSE_ICON[name] || (fatal ? '🚨' : '')) :
   name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' :
-  name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚗🌧️' : '';
+  name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚗🌧️' :
+  name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '🚗⚖️' : '';
 const glyphs = (s) => [...new Intl.Segmenter().segment(s)].length;
 function emojiImage(name, emoji) {
   const n = glyphs(emoji), big = emoji === '🚶‍♀️';   // the walking glyph is narrow, so draw it larger
@@ -252,7 +253,7 @@ const groupIcon = (name) =>
   isDriver(name) ? '🚗' :
   name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' :
   name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚗🌧️' :
-  name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '⚖️' : '';
+  name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '🚗⚖️' : '';
 // Extra marker for specific causes.
 const CAUSE_ICON = {
   'ΟΔΗΓΟΣ-ΑΠΟΣΠΑΣΗ ΤΗΣ ΠΡΟΣΟΧΗΣ ΤΟΥ ΟΔΗΓΟΥ': '📱',

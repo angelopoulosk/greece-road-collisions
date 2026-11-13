@@ -90,9 +90,9 @@
     <div class="quick">
       <button type="button" data-pick="all">Όλες</button>
       <button type="button" data-pick="none">Καμία</button>
-      <button type="button" data-pick="driver">🚗 Οδηγός</button>
+      <button type="button" data-pick="driver">🚙 Οδηγός</button>
       <button type="button" data-pick="ped">🚶‍♀️ Πεζός</button>
-      <button type="button" data-pick="fatal" class="big">🚨 Fatal 5 🚗</button>
+      <button type="button" data-pick="fatal" class="big">💀 Fatal 5 🚙</button>
     </div>
     <div class="causes" id="causes"></div>
   </div>
@@ -105,7 +105,7 @@
   <p class="foot">
     <b>Πηγή δεδομένων:</b> <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">Χάρτης Τροχαίων Συγκρούσεων, accidents.maps.gov.gr</a>
     (Υπουργείο Ψηφιακής Διακυβέρνησης, Υπουργείο Προστασίας του Πολίτη, Υπουργείο Υποδομών και Μεταφορών). Ανεπίσημο αντίγραφο, λήψη 13/11/2026. <span id="range"></span>
-    🚨 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚗 οδηγός/όχημα · 🚶‍♀️ πεζός · 🚗🌧️ οδός &amp; καιρός · 🚗⚖️ υπό εκδίκαση.
+    💀 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚙 οδηγός/όχημα · 🚶‍♀️ πεζός · 🚙🌧️ οδός &amp; καιρός · 🚙⚖️ υπό εκδίκαση.
     Κάντε ζουμ και κλικ σε ένα σημείο για λεπτομέρειες.
     <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
   </p>
@@ -168,14 +168,14 @@ function addLayers(id, color, deep) {
 }
 
 // Marked collisions get an emoji icon instead of a dot once individual points are visible.
-// Driver and vehicle causes show 🚗 plus their own emoji (📱 🍾 🚦 💨 🛑, or 🚨 for other Fatal Five
-// causes); road and weather causes show 🚗🌧️; pedestrian causes show 🚶‍♀️.
+// Driver and vehicle causes show 🚙 plus their own emoji (📱 🍾 🚦 💨 🛑, or 💀 for other Fatal Five
+// causes); road and weather causes show 🚙🌧️; pedestrian causes show 🚶‍♀️.
 const MAP_ICONS = [];   // filled from the causes in the data
 const iconFor = (name, fatal) =>
-  isDriver(name) ? '🚗' + (CAUSE_ICON[name] || (fatal ? '🚨' : '')) :
+  isDriver(name) ? '🚙' + (CAUSE_ICON[name] || (fatal ? '💀' : '')) :
   name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' :
-  name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚗🌧️' :
-  name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '🚗⚖️' : '';
+  name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚙🌧️' :
+  name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '🚙⚖️' : '';
 const glyphs = (s) => [...new Intl.Segmenter().segment(s)].length;
 function emojiImage(name, emoji) {
   const n = glyphs(emoji), big = emoji === '🚶‍♀️';   // the walking glyph is narrow, so draw it larger
@@ -245,15 +245,15 @@ function updateYears() {
   });
 }
 
-// 🚨 marks causes in the “Fatal Five”: speeding, drink/drug driving, careless and distracted driving.
+// 💀 marks causes in the “Fatal Five”: speeding, drink/drug driving, careless and distracted driving.
 // Vehicle causes (ΟΧΗΜΑ-) count as driver causes.
 const isDriver = (name) => name.startsWith('ΟΔΗΓΟΣ-') || name.startsWith('ΟΧΗΜΑ-');
 // Group marker by who or what the recorded cause refers to.
 const groupIcon = (name) =>
-  isDriver(name) ? '🚗' :
+  isDriver(name) ? '🚙' :
   name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' :
-  name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚗🌧️' :
-  name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '🚗⚖️' : '';
+  name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚙🌧️' :
+  name === 'ΑΙΤΙΑ ΥΠΟ ΕΚΔΙΚΑΣΗ' ? '🚙⚖️' : '';
 // Extra marker for specific causes.
 const CAUSE_ICON = {
   'ΟΔΗΓΟΣ-ΑΠΟΣΠΑΣΗ ΤΗΣ ΠΡΟΣΟΧΗΣ ΤΟΥ ΟΔΗΓΟΥ': '📱',
@@ -263,7 +263,7 @@ const CAUSE_ICON = {
   'ΟΔΗΓΟΣ-ΛΟΙΠΕΣ ΠΑΡΑΒΙΑΣΕΙΣ ΣΗΜΑΝΣΕΩΝ ΕΝ ΓΕΝΕΙ': '🛑',
   'ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΠΡΟΤΕΡΑΙΟΤΗΤΑΣ ΓΕΝΙΚΩΣ': '🛑'
 };
-const causeLabel = (d, i) => ((d.isFatal[i] ? '🚨' : '') + groupIcon(d.causes[i]) + (CAUSE_ICON[d.causes[i]] || '') + ' ' + d.causes[i]).trim();
+const causeLabel = (d, i) => ((d.isFatal[i] ? '💀' : '') + groupIcon(d.causes[i]) + (CAUSE_ICON[d.causes[i]] || '') + ' ' + d.causes[i]).trim();
 
 function buildCauses() {
   const d = DATA.collisions, n = new Array(d.causes.length).fill(0);

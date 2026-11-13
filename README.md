@@ -18,10 +18,10 @@ interactive map.
 Columns: `id`, `datetime_athens`, `timestamp_utc`, `longitude`, `latitude`, `municipality`,
 `description` (recorded cause, collisions only), `fatal_five`, `color` (marker colour used by the source map).
 
-### Fatal Five 🚨
+### Fatal Five 💀
 
 Causes that fall under the [Fatal Five](https://www.surreyroadsafe.org.uk/the-fatal-five/) are flagged in the
-`fatal_five` column and shown with 🚨 on the map:
+`fatal_five` column and shown with 💀 on the map:
 
 | Fatal Five | Recorded cause in the source |
 |---|---|
@@ -33,7 +33,7 @@ Causes that fall under the [Fatal Five](https://www.surreyroadsafe.org.uk/the-fa
 
 The mapping is this repository's own reading of the source's cause labels.
 
-On the map, causes also carry a group marker: 🚗 driver and vehicle, 🚶‍♀️ pedestrian, 🚗🌧️ road and weather, 🚗⚖️ cause pending trial. Specific causes add 📱 distraction, 🍾 drunk driving, 🚦 red light, 💨 speeding, 🛑 signage and priority violations.
+On the map, causes also carry a group marker: 🚙 driver and vehicle, 🚶‍♀️ pedestrian, 🚙🌧️ road and weather, 🚙⚖️ cause pending trial. Specific causes add 📱 distraction, 🍾 drunk driving, 🚦 red light, 💨 speeding, 🛑 signage and priority violations.
 
 `data/collisions.json` and `data/transports.json` are compact column files used by the map.
 

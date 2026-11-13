@@ -30,10 +30,12 @@ Causes that fall under the [Fatal Five](https://www.surreyroadsafe.org.uk/the-fa
 | Speeding | ΟΔΗΓΟΣ-ΥΠΕΡΒΟΛΙΚΗ ΤΑΧΥΤΗΤΑ ΓΕΝΙΚΩΣ |
 | Drink/drug driving | ΟΔΗΓΟΣ-ΟΔΗΓΗΣΗ ΣΕ ΚΑΤΑΣΤΑΣΗ ΜΕΘΗΣ |
 | Distracted driving | ΟΔΗΓΟΣ-ΑΠΟΣΠΑΣΗ ΤΗΣ ΠΡΟΣΟΧΗΣ ΤΟΥ ΟΔΗΓΟΥ |
-| Careless driving | ΟΔΗΓΟΣ-ΑΝΤΙΚΑΝΟΝΙΚΟ ΠΡΟΣΠΕΡΑΣΜΑ, ΟΔΗΓΟΣ-ΜΗ ΤΗΡΗΣΗ ΑΠΟΣΤΑΣΗΣ ΑΣΦΑΛΕΙΑΣ, ΟΔΗΓΟΣ-ΕΠΙΔΕΙΚΤΙΚΟΙ ΕΛΙΓΜΟΙ ΣΤΗ ΜΕΣΗ ΤΗΣ ΟΔΟΥ, ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΣΗΜΑΤΟΔΟΤΗ, ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΠΡΟΤΕΡΑΙΟΤΗΤΑΣ ΓΕΝΙΚΩΣ, ΟΔΗΓΟΣ-ΚΙΝΗΣΗ ΣΤΟ ΑΝΤΙΘΕΤΟ ΡΕΥΜΑ |
+| Careless driving | ΟΔΗΓΟΣ-ΑΝΤΙΚΑΝΟΝΙΚΟ ΠΡΟΣΠΕΡΑΣΜΑ, ΟΔΗΓΟΣ-ΜΗ ΤΗΡΗΣΗ ΑΠΟΣΤΑΣΗΣ ΑΣΦΑΛΕΙΑΣ, ΟΔΗΓΟΣ-ΕΠΙΔΕΙΚΤΙΚΟΙ ΕΛΙΓΜΟΙ ΣΤΗ ΜΕΣΗ ΤΗΣ ΟΔΟΥ, ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΣΗΜΑΤΟΔΟΤΗ, ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΠΡΟΤΕΡΑΙΟΤΗΤΑΣ ΓΕΝΙΚΩΣ, ΟΔΗΓΟΣ-ΚΙΝΗΣΗ ΣΤΟ ΑΝΤΙΘΕΤΟ ΡΕΥΜΑ, ΟΔΗΓΟΣ-ΑΔΙΚΑΙΟΛΟΓΗΤΗ ΤΡΟΧΟΠΕΔΗΣΗ, ΟΔΗΓΟΣ-ΛΟΙΠΕΣ ΠΑΡΑΒΙΑΣΕΙΣ ΣΗΜΑΝΣΕΩΝ ΕΝ ΓΕΝΕΙ, ΟΔΗΓΟΣ-ΕΣΦΑΛΜΕΝΗ ΑΠΟΦΕΥΚΤΙΚΗ ΕΝΕΡΓΕΙΑ |
 | Not wearing a seatbelt | no matching cause in the source |
 
 The mapping is this repository's own reading of the source's cause labels.
+
+On the map, causes also carry a group marker: 🚗 driver, 🚶‍♀️ pedestrian, 🚗☁️ road and weather, 🔨 cause pending trial.
 
 `data/collisions.json` and `data/transports.json` are compact column files used by the map.
 

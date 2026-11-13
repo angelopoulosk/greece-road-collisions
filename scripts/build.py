@@ -29,6 +29,9 @@ FATAL_FIVE = {
     "ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΣΗΜΑΤΟΔΟΤΗ": "careless_driving",
     "ΟΔΗΓΟΣ-ΠΑΡΑΒΙΑΣΗ ΠΡΟΤΕΡΑΙΟΤΗΤΑΣ ΓΕΝΙΚΩΣ": "careless_driving",
     "ΟΔΗΓΟΣ-ΚΙΝΗΣΗ ΣΤΟ ΑΝΤΙΘΕΤΟ ΡΕΥΜΑ": "careless_driving",
+    "ΟΔΗΓΟΣ-ΑΔΙΚΑΙΟΛΟΓΗΤΗ ΤΡΟΧΟΠΕΔΗΣΗ": "careless_driving",
+    "ΟΔΗΓΟΣ-ΛΟΙΠΕΣ ΠΑΡΑΒΙΑΣΕΙΣ ΣΗΜΑΝΣΕΩΝ ΕΝ ΓΕΝΕΙ": "careless_driving",
+    "ΟΔΗΓΟΣ-ΕΣΦΑΛΜΕΝΗ ΑΠΟΦΕΥΚΤΙΚΗ ΕΝΕΡΓΕΙΑ": "careless_driving",
 }
 NAMES = {"sigrousi": "collisions", "diakomidi": "transports"}
 

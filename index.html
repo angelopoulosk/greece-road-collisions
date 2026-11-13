@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Τροχαίες συγκρούσεις στην Ελλάδα — χάρτης</title>
+<title>Δεν είναι ατύχημα — χάρτης τροχαίων συγκρούσεων στην Ελλάδα</title>
 <meta name="description" content="Διαδραστικός χάρτης τροχαίων συγκρούσεων και διακομιδών στην Ελλάδα από τον Οκτώβριο 2020, με δεδομένα από το accidents.maps.gov.gr.">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -19,7 +19,9 @@
   .panel{position:absolute;top:12px;left:12px;z-index:5;width:340px;max-width:calc(100vw - 24px);
     max-height:calc(100vh - 24px);overflow:auto;background:var(--panel);border:1px solid var(--line);
     border-radius:12px;padding:16px 16px 12px;backdrop-filter:blur(6px)}
-  h1{font-size:20px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em}
+  .hero{display:block;width:calc(100% + 32px);margin:-16px -16px 12px;border-radius:12px 12px 0 0}
+  .lede{margin:0 0 8px;font-size:13px;color:var(--muted)}
+  h1{font-size:24px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em}
   .sub{margin:0 0 2px;font-size:14px;font-style:italic;color:var(--accent);line-height:1.35}
   .cite{margin:0 0 12px;font-size:11px;color:var(--muted)}
   .row{margin-top:12px}
@@ -57,7 +59,9 @@
 <div id="loading">Φόρτωση δεδομένων…</div>
 
 <aside class="panel">
-  <h1>Τροχαίες συγκρούσεις στην Ελλάδα</h1>
+  <img class="hero" src="header.jpg" alt="" onerror="this.remove()">
+  <h1>Δεν είναι ατύχημα</h1>
+  <p class="lede">Τροχαίες συγκρούσεις και διακομιδές στην Ελλάδα, 2020–2025</p>
   <p class="sub">«Το “ατύχημα” υπονοεί ότι δεν φταίει κανείς.»</p>
   <p class="cite">— Hot Fuzz (2007)</p>
 
@@ -85,8 +89,8 @@
   </div>
 
   <p class="foot">
-    Πηγή: <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">accidents.maps.gov.gr</a>
-    (Υπουργείο Ψηφιακής Διακυβέρνησης). <span id="range"></span>
+    <b>Πηγή δεδομένων:</b> <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">Χάρτης Τροχαίων Συγκρούσεων, accidents.maps.gov.gr</a>
+    (Υπουργείο Ψηφιακής Διακυβέρνησης, Υπουργείο Προστασίας του Πολίτη, Υπουργείο Υποδομών και Μεταφορών). Ανεπίσημο αντίγραφο, λήψη 13/11/2026. <span id="range"></span>
     Κάντε ζουμ και κλικ σε ένα σημείο για λεπτομέρειες.
     <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
   </p>

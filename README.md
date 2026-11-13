@@ -1,4 +1,6 @@
-# Τροχαίες συγκρούσεις στην Ελλάδα
+# Δεν είναι ατύχημα
+
+**Source / Πηγή:** all data comes from the Greek government's road collision map, [accidents.maps.gov.gr](https://accidents.maps.gov.gr/geo-analytics/) (Χάρτης Τροχαίων Συγκρούσεων), retrieved on 13/11/2026.
 
 > «Το “ατύχημα” υπονοεί ότι δεν φταίει κανείς.» — Hot Fuzz (2007)
 
@@ -29,7 +31,7 @@ circle were de-duplicated by record id. Circles with no events in a full test ye
 (04/2022 – 04/2023) and no neighbouring circle with events were not queried further. The source
 had no records after the end dates above.
 
-`scripts/build.py` turns the raw dump into the files under `data/`.
+`data/raw.json` is the unprocessed dump as collected; `scripts/build.py` turns it into the other files under `data/`.
 
 ## Source and licence
 

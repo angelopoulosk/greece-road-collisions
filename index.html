@@ -118,7 +118,7 @@ let DATA = { collisions: null, transports: null };
 
 const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://tiles.openfreemap.org/styles/dark',
+  style: 'https://tiles.openfreemap.org/styles/positron',
   center: [23.8, 38.4], zoom: 6, minZoom: 4, maxZoom: 18,
   attributionControl: { compact: true }
 });
@@ -145,7 +145,7 @@ function toGeoJSON(d, kind) {
   return { type: 'FeatureCollection', features: f };
 }
 
-function addLayers(id, color) {
+function addLayers(id, color, deep) {
   map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: id + '-heat', type: 'heatmap', source: id, maxzoom: 12,
     paint: {
@@ -153,7 +153,7 @@ function addLayers(id, color) {
       'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 4, 0.15, 8, 0.5, 12, 1.2],
       'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 8, 8, 12, 16],
       'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
-        0, 'rgba(0,0,0,0)', 0.15, color + '55', 0.5, color + 'bb', 1, '#ffffff'],
+        0, 'rgba(0,0,0,0)', 0.15, color + '66', 0.5, color + 'cc', 1, deep],
       'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.9, 12, 0]
     }});
   map.addLayer({ id: id + '-pt', type: 'circle', source: id, minzoom: 10,
@@ -163,32 +163,37 @@ function addLayers(id, color) {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 4, 17, 7],
       'circle-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 0.8],
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 13, 0, 15, 1],
-      'circle-stroke-color': '#0e1116'
+      'circle-stroke-color': '#ffffff'
     }});
 }
 
 // Marked collisions get an emoji icon instead of a dot once individual points are visible.
-// The cause's own emoji wins; other Fatal Five causes get 🚨; pedestrian causes get 🚶‍♀️.
-const MAP_ICONS = ['🚨', '🚶‍♀️', '📱', '🍾', '🚦', '💨', '🛑', '🌧️'];
+// Driver and vehicle causes show 🚗 plus their own emoji (📱 🍾 🚦 💨 🛑, or 🚨 for other Fatal Five
+// causes); road and weather causes show 🚗🌧️; pedestrian causes show 🚶‍♀️.
+const MAP_ICONS = [];   // filled from the causes in the data
 const iconFor = (name, fatal) =>
-  CAUSE_ICON[name] || (fatal ? '🚨' : name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' : name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🌧️' : '');
+  isDriver(name) ? '🚗' + (CAUSE_ICON[name] || (fatal ? '🚨' : '')) :
+  name.startsWith('ΠΕΖΟΣ-') ? '🚶‍♀️' :
+  name.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? '🚗🌧️' : '';
+const glyphs = (s) => [...new Intl.Segmenter().segment(s)].length;
 function emojiImage(name, emoji) {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const n = glyphs(emoji), big = emoji === '🚶‍♀️';   // the walking glyph is narrow, so draw it larger
+  const size = big ? 96 : 48, w = n * 56 + 8, h = big ? 104 : 64;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
   const ctx = c.getContext('2d');
-  ctx.font = '48px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+  ctx.font = size + 'px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(emoji, 32, 36);
-  map.addImage(name, ctx.getImageData(0, 0, 64, 64), { pixelRatio: 2 });
+  ctx.fillText(emoji, w / 2, h / 2 + 4);
+  map.addImage(name, ctx.getImageData(0, 0, w, h), { pixelRatio: 2 });
 }
 function addSirenLayer() {
   MAP_ICONS.forEach((e, k) => emojiImage('icon' + (k + 1), e));
-  const k = ['match', ['get', 'f'], 2, 2, 1];   // the walking glyph is narrow, so draw it larger
   map.addLayer({ id: 'col-icon', type: 'symbol', source: 'col', minzoom: 10,
     filter: ['>', ['get', 'f'], 0],
     layout: {
       'icon-image': ['concat', 'icon', ['to-string', ['get', 'f']]],
       'icon-allow-overlap': true, 'icon-ignore-placement': true,
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, ['*', 0.3, k], 14, ['*', 0.6, k], 17, ['*', 0.9, k]]
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.3, 14, 0.6, 17, 0.9]
     },
     paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
 }
@@ -304,13 +309,18 @@ async function load(name) {
   d.yr = d.t.map(yearOf);             // year of each record
   d.fatal = d.fatal || [];
   d.isFatal = d.causes.map((_, i) => d.fatal.includes(i));
-  d.mark = d.causes.map((n, i) => MAP_ICONS.indexOf(iconFor(n, d.isFatal[i])) + 1);
+  d.mark = d.causes.map((n, i) => {
+    const e = iconFor(n, d.isFatal[i]);
+    if (!e) return 0;
+    if (!MAP_ICONS.includes(e)) MAP_ICONS.push(e);
+    return MAP_ICONS.indexOf(e) + 1;
+  });
   return d;
 }
 
 Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('load', r))]).then(([c, t]) => {
   DATA.collisions = c; DATA.transports = t;
-  addLayers('tra', TRA); addLayers('col', COL); addSirenLayer();
+  addLayers('tra', TRA, '#003c66'); addLayers('col', COL, '#7a1500'); addSirenLayer();
   buildYears(); buildCauses();
   const span = (d) => { let a = Infinity, b = -Infinity; for (const m of d.t) { if (m < a) a = m; if (m > b) b = m; } return [a, b]; };
   const md = new Intl.DateTimeFormat('el-GR', { timeZone: 'Europe/Athens', month: '2-digit', year: 'numeric' });

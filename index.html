@@ -172,6 +172,10 @@
     </div>
   </div>
 
+  <div class="row seg">
+    <label><input type="checkbox" id="showSch" checked><span class="dot" style="background:#ffd400;border:1px solid #1a1a1a;border-radius:2px"></span>Σχολεία (χώροι σχολείων, από ζουμ πόλης)</label>
+  </div>
+
   <div class="row">
     <div class="label">Έτος <span id="yearHint" style="text-transform:none;letter-spacing:0">(όλα)</span></div>
     <div class="years" id="years"></div>
@@ -275,6 +279,27 @@ map.addControl(new TextCtrl((d) => {
   b.onclick = () => startSelect();
   d.appendChild(b);
 }), 'top-right');
+
+// School grounds, highlighted straight from the base map's own data (OpenStreetMap school areas).
+const SCHOOL_LAYERS = ['school-zone', 'school-fill', 'school-line', 'school-name'];
+function addSchools() {
+  const isSchool = ['in', ['get', 'class'], ['literal', ['school', 'kindergarten']]];
+  const base = { source: 'openmaptiles', 'source-layer': 'landuse', minzoom: 11, filter: isSchool };
+  map.addLayer({ id: 'school-zone', type: 'line', ...base,
+    paint: { 'line-color': '#ffc400', 'line-opacity': 0.35, 'line-blur': 4,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4, 14, 14, 17, 34] } });
+  map.addLayer({ id: 'school-fill', type: 'fill', ...base, paint: { 'fill-color': '#ffd400', 'fill-opacity': 0.55 } });
+  map.addLayer({ id: 'school-line', type: 'line', ...base,
+    paint: { 'line-color': '#1a1a1a', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 15, 2] } });
+  map.addLayer({ id: 'school-name', type: 'symbol', source: 'openmaptiles', 'source-layer': 'poi', minzoom: 15,
+    filter: ['==', ['get', 'class'], 'school'],
+    layout: { 'text-field': ['concat', '🏫 ', ['coalesce', ['get', 'name'], 'Σχολείο']], 'text-font': ['Noto Sans Bold'],
+      'text-size': 11, 'text-max-width': 9, 'text-optional': true },
+    paint: { 'text-color': '#3a2c00', 'text-halo-color': '#fff3b0', 'text-halo-width': 1.5 } });
+}
+function setSchools(on) {
+  for (const id of SCHOOL_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+}
 
 const fmt = new Intl.NumberFormat('el-GR');
 const dfmt = new Intl.DateTimeFormat('el-GR', { timeZone: 'Europe/Athens', dateStyle: 'medium', timeStyle: 'short' });
@@ -843,7 +868,7 @@ async function load(name) {
 
 Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('load', r))]).then(([c, t]) => {
   DATA.collisions = c; DATA.transports = t;
-  addBase(); addLayers('tra', TRA, '#003c66'); addLayers('col', COL, '#7a1500'); addSirenLayer();
+  addBase(); addSchools(); addLayers('tra', TRA, '#003c66'); addLayers('col', COL, '#7a1500'); addSirenLayer();
   buildYears(); buildCauses();
   const span = (d) => { let a = Infinity, b = -Infinity; for (const m of d.t) { if (m < a) a = m; if (m > b) b = m; } return [a, b]; };
   const md = new Intl.DateTimeFormat('el-GR', { timeZone: 'Europe/Athens', month: '2-digit', year: 'numeric' });
@@ -887,6 +912,7 @@ Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('lo
   map.on('mousemove', (e) => { map.getCanvas().style.cursor = hit(e.point) ? 'pointer' : ''; });
   map.on('zoomstart', closeSpider);
   map.on('moveend', updateTop);
+  document.getElementById('showSch').onchange = (e) => setSchools(e.target.checked);
   document.getElementById('showCol').onchange = (e) => { state.showCol = e.target.checked; refresh(); };
   document.getElementById('showTra').onchange = (e) => { state.showTra = e.target.checked; refresh(); };
   refresh();

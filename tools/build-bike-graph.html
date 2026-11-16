@@ -136,6 +136,47 @@ async function build() {
     log(`Dead ends joined: ${joins} onto streets, ${links} by short links`);
   }
 
+  // ---------- 2b. streets that cross with no shared point (junction dropped from both lines): join them there
+  {
+    const S0 = SA.length, CELL = 64, grid = new Map(), gk = (cx, cy) => cx * 1048576 + cy;
+    for (let s = 0; s < S0; s++) {
+      if (SBR[s]) continue;                                    // bridges pass over, never join
+      const ax = NX[SA[s]], ay = NY[SA[s]], bx = NX[SB[s]], by = NY[SB[s]];
+      for (let cx = Math.floor(Math.min(ax, bx) / CELL); cx <= Math.floor(Math.max(ax, bx) / CELL); cx++)
+        for (let cy = Math.floor(Math.min(ay, by) / CELL); cy <= Math.floor(Math.max(ay, by) / CELL); cy++) {
+          const g = gk(cx, cy); let arr = grid.get(g); if (!arr) grid.set(g, arr = []); arr.push(s);
+        }
+    }
+    const splits = new Map(), tried = new Set();
+    const addSplit = (s, t, n) => { let l = splits.get(s); if (!l) splits.set(s, l = []); l.push([t, n]); };
+    let crossings = 0;
+    for (const arr of grid.values()) {
+      for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
+        const p = arr[i], q = arr[j], pk = p < q ? p * 4194304 + q : q * 4194304 + p;
+        if (tried.has(pk)) continue; tried.add(pk);
+        if (SA[p] === SA[q] || SA[p] === SB[q] || SB[p] === SA[q] || SB[p] === SB[q]) continue;
+        const x1 = NX[SA[p]], y1 = NY[SA[p]], x2 = NX[SB[p]], y2 = NY[SB[p]], x3 = NX[SA[q]], y3 = NY[SA[q]], x4 = NX[SB[q]], y4 = NY[SB[q]];
+        const den = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3);
+        if (!den) continue;
+        const t = ((x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)) / den, u = ((x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)) / den;
+        if (t <= 0.001 || t >= 0.999 || u <= 0.001 || u >= 0.999) continue;
+        const n = node(Math.round(x1 + t * (x2 - x1)), Math.round(y1 + t * (y2 - y1)));
+        addSplit(p, t, n); addSplit(q, u, n); crossings++;
+      }
+    }
+    for (const [s, l] of splits) {
+      l.sort((a, b) => a[0] - b[0]);
+      let prev = SA[s];
+      for (const [, n] of l) { if (n !== prev) { SA.push(prev); SB.push(n); SC.push(SC[s]); SO.push(SO[s]); SBR.push(SBR[s]); prev = n; } }
+      if (prev !== SB[s]) { SA.push(prev); SB.push(SB[s]); SC.push(SC[s]); SO.push(SO[s]); SBR.push(SBR[s]); }
+      SA[s] = -1;
+    }
+    const keep = SA.map((a) => a >= 0);
+    const f = (arr) => arr.filter((_, i) => keep[i]);
+    SA = f(SA); SB = f(SB); SC = f(SC); SO = f(SO); SBR = f(SBR);
+    log(`Crossings joined: ${crossings}`);
+  }
+
   // ---------- 3. chains of points between junctions become edges
   const S = SA.length, NN = NX.length;
   const deg = new Int32Array(NN);

@@ -335,7 +335,7 @@ function compute() {
   const total = arcs.reduce((a, k) => a + G.E.len[G.aEdge[k]], 0);
   last = { pts, total, up, dn, safe };
   map.getSource('route').setData({ type: 'FeatureCollection', features: runs.map(r => ({ type: 'Feature', properties: { c: r.c }, geometry: { type: 'LineString', coordinates: r.coords } })) });
-  const mins = total / 4.4 / 60 + up * 7 / 60;               // ~16 km/h on the flat, + ~7 s per metre climbed
+  const mins = total / 4.4 / 60 + up * 4 / 60;               // ~16 km/h on the flat, + ~4 s per metre climbed
   $('sDist').textContent = fmt1.format(total / 1000);
   $('sTime').textContent = fmt0.format(Math.max(1, mins));
   $('sUp').textContent = fmt0.format(up); $('sDn').textContent = fmt0.format(dn);

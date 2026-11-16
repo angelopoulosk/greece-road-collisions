@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Οι δρόμοι με τις λιγότερες συγκρούσεις στην Αθήνα — Δεν είναι ατύχημα</title>
+<title>Ποδήλατο: οι δρόμοι με τις λιγότερες συγκρούσεις στην Αθήνα — Δεν είναι ατύχημα</title>
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -51,7 +51,7 @@
 <div id="map"></div>
 <aside class="panel">
   <h1>Οι δρόμοι με τις <em>λιγότερες συγκρούσεις</em> στην Αθήνα</h1>
-  <p class="lede">Αντίστροφος χάρτης θερμότητας: τονίζονται οι δρόμοι <b>χωρίς</b> καταγεγραμμένη σύγκρουση (10/2020–05/2025), πώς συνδέονται μεταξύ τους και ποιες γειτονιές έχουν τις λιγότερες συγκρούσεις ανά χιλιόμετρο δρόμου.</p>
+  <p class="lede">Αντίστροφος χάρτης θερμότητας: τονίζονται οι δρόμοι <b>χωρίς</b> καταγεγραμμένη σύγκρουση (10/2020–05/2025), πώς συνδέονται μεταξύ τους και πού διακόπτονται. Φτιαγμένος κυρίως για ποδηλάτες: χωρίς αυτοκινητόδρομους και οδούς ταχείας κυκλοφορίας.</p>
   <div id="status">Φόρτωση…</div>
 
   <div id="body" hidden>
@@ -75,14 +75,10 @@
       <label><input type="checkbox" data-l="hoods" checked><i class="dot" style="background:#35b56a"></i>Γειτονιές (πράσινο = λίγες συγκρούσεις/χλμ.)</label>
     </div>
 
-    <div class="label">Γειτονιές ανά συγκρούσεις / χλμ. δρόμου</div>
-    <div class="tabs"><button type="button" id="tSafe" class="on">Λιγότερες</button><button type="button" id="tRisk">Περισσότερες</button></div>
-    <ol id="hoods"></ol>
-
     <p class="foot">
       <b>Προσοχή στην ερμηνεία.</b> «Χωρίς σύγκρουση» σημαίνει ότι δεν έχει καταγραφεί σύγκρουση σε απόσταση 25 μ. από το τμήμα, όχι ότι ο δρόμος είναι ασφαλής:
       τα δεδομένα δεν περιλαμβάνουν κυκλοφοριακό φόρτο, άρα ήσυχοι δρόμοι με λίγη κίνηση φαίνονται «ασφαλείς» απλώς επειδή περνούν λίγοι.
-      Δρόμοι: OpenStreetMap (κύριοι και τοπικοί, χωρίς σήραγγες)· η επιλογή «Μόνο κύριοι δρόμοι» αφήνει έξω τους τοπικούς, όπου το πρόβλημα αυτό είναι μεγαλύτερο. Γειτονιές: σημεία «suburb» του OpenStreetMap, κάθε τμήμα ανήκει στην πλησιέστερη.
+      Οι συγκρούσεις είναι όλων των οχημάτων, όχι μόνο ποδηλάτων (η πηγή δεν δίνει τύπο οχήματος), και δεν περιλαμβάνονται ποδηλατόδρομοι και μονοπάτια. Δρόμοι: OpenStreetMap (κύριοι και τοπικοί, χωρίς σήραγγες, αυτοκινητόδρομους και οδούς ταχείας κυκλοφορίας)· η επιλογή «Μόνο κύριοι δρόμοι» αφήνει έξω τους τοπικούς, όπου το πρόβλημα αυτό είναι μεγαλύτερο. Γειτονιές: σημεία «suburb» του OpenStreetMap, κάθε τμήμα ανήκει στην πλησιέστερη.
       Πηγή συγκρούσεων: <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">accidents.maps.gov.gr</a>.
     </p>
   </div>
@@ -94,7 +90,8 @@ const BBOX = [23.56, 37.85, 23.90, 38.12], Z = 12;
 const SNAP = 25;          // a collision counts for every road piece within this many metres
 const PIECE = 100;        // roads are cut into pieces of about this length (m)
 const JOIN = 6;           // road pieces whose vertices are this close (m) are connected
-const ROADS = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor']);
+// For cyclists: motorways and trunk roads (closed to bicycles or unfit for them) are left out.
+const ROADS = new Set(['primary', 'secondary', 'tertiary', 'minor']);
 const PLACES = new Set(['suburb', 'town', 'village', 'quarter', 'neighbourhood']);
 // local flat projection in metres
 const LON0 = BBOX[0], LAT0 = BBOX[1], KX = 111320 * Math.cos(38 * Math.PI / 180), KY = 110950;
@@ -293,15 +290,6 @@ function panel(res) {
   document.getElementById('kmMain').textContent = fmt.format(res.mainLen / 1000);
   document.getElementById('nNets').textContent = res.nets;
   document.getElementById('nLinks').textContent = res.links;
-  const list = (rows) => { const el = document.getElementById('hoods'); el.textContent = '';
-    for (const h of rows) { const li = document.createElement('li'), b = document.createElement('button'); b.type = 'button';
-      const a = document.createElement('span'); a.textContent = h.name;
-      const c = document.createElement('span'); c.className = 'n'; c.textContent = fmt.format(h.rate) + '/χλμ. · ' + Math.round(100 * h.safeKm / h.km) + '% χωρίς';
-      b.append(a, c); b.onclick = () => map.flyTo({ center: toLL(h.X, h.Y), zoom: 14.5 }); li.appendChild(b); el.appendChild(li); } };
-  const tS = document.getElementById('tSafe'), tR = document.getElementById('tRisk');
-  tS.onclick = () => { tS.classList.add('on'); tR.classList.remove('on'); list(res.hoods.slice(0, 15)); };
-  tR.onclick = () => { tR.classList.add('on'); tS.classList.remove('on'); list(res.hoods.slice(-15).reverse()); };
-  list(res.hoods.slice(0, 15));
 }
 
 (async () => {

@@ -144,13 +144,14 @@ const IDB = {
   async get(k) { const db = await this.open(); return new Promise((ok, no) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }); },
   async set(k, v) { const db = await this.open(); return new Promise((ok, no) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = ok; t.onerror = () => no(t.error); }); }
 };
-const MAX_AGE_DAYS = 60;
+const MAX_AGE_DAYS = 60, GRAPH_V = 3;   // GRAPH_V must match GRAPH_VERSION in tools/bike-graph-lib.js
 async function getGraphData() {
-  const { buildGraph, GRAPH_VERSION } = await import('./tools/bike-graph-lib.js');
-  try { const r = await fetch('data/bike-graph.json', { cache: 'no-cache' }); if (r.ok) { const d = await r.json(); if (d.v === GRAPH_VERSION) return d; } } catch (e) { /* not published */ }
+  // the version in the address makes browsers fetch the builder again whenever it changes
+  const { buildGraph, GRAPH_VERSION } = await import('./tools/bike-graph-lib.js?v=' + GRAPH_V);
+  try { const r = await fetch('data/bike-graph.json', { cache: 'no-cache' }); if (r.ok) { const d = await r.json(); if (d.v === GRAPH_V) return d; } } catch (e) { /* not published */ }
   let saved = null;
   try { saved = await IDB.get('graph'); } catch (e) { /* storage unavailable */ }
-  if (saved && saved.v === GRAPH_VERSION && (Date.now() - Date.parse(saved.built)) / 864e5 < MAX_AGE_DAYS) return saved;
+  if (saved && saved.v === GRAPH_V && (Date.now() - Date.parse(saved.built)) / 864e5 < MAX_AGE_DAYS) return saved;
   msg('Πρώτη χρήση σε αυτή τη συσκευή: κατεβάζω τον χάρτη δρόμων (~27 MB) και τον επεξεργάζομαι, περίπου 10–30 δευτερόλεπτα…');
   const steps = { 'Streets read': 'Δρόμοι: ✓', 'Edges': 'Συνδέσεις: ✓', 'Terrain': 'Υψόμετρα: ✓', 'Collisions placed': 'Συγκρούσεις: ✓' };
   const d = await buildGraph({ collisionsUrl: 'data/collisions.json',

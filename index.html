@@ -74,6 +74,16 @@
   .maplibregl-popup-tip{border-top-color:#161b22!important;border-bottom-color:#161b22!important}
   .maplibregl-popup-close-button{color:var(--muted)}
   .pop small{color:var(--muted)}
+  .lg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:8px;font-size:11px;color:var(--muted)}
+  .lg i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;border:1px solid #fff}
+  .top{list-style:none;margin:0;padding:0;counter-reset:t}
+  .top li{counter-increment:t}
+  .top li.none{font-size:12px;color:var(--muted)}
+  .top button{display:flex;align-items:baseline;gap:8px;width:100%;padding:6px 4px;background:none;border:0;
+    border-bottom:1px solid var(--line);color:var(--text);font:inherit;font-size:12px;text-align:left;cursor:pointer}
+  .top button::before{content:counter(t) '.';color:var(--muted);min-width:18px}
+  .top button:hover{background:#0e1116}
+  .top .n{margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted)}
   .sheet-toggle{display:none}
   /* Phones: the panel becomes a bottom sheet. Collapsed it is a slim bar; tapping it opens the filters. */
   @media (max-width:700px){
@@ -142,6 +152,13 @@
       <button type="button" data-pick="fatal" class="big">💀 Fatal 5 🚙</button>
     </div>
     <div class="causes" id="causes"></div>
+    <div class="lg">
+      <span><i style="background:#8a0303"></i>Fatal 5</span>
+      <span><i style="background:#f08a24"></i>Οδηγός/όχημα</span>
+      <span><i style="background:#7b3fb5"></i>Πεζός</span>
+      <span><i style="background:#2f7f9e"></i>Οδός &amp; καιρός</span>
+      <span><i style="background:#8a8f98"></i>Υπό εκδίκαση/λοιπά</span>
+    </div>
   </div>
 
   <div class="stat">
@@ -149,11 +166,16 @@
     <div><b id="nTra">–</b><span>διακομιδές</span></div>
   </div>
 
+  <div class="row">
+    <div class="label">Σημεία με τις περισσότερες συγκρούσεις <span style="text-transform:none;letter-spacing:0">(στην οθόνη)</span></div>
+    <ol class="top" id="top"></ol>
+  </div>
+
   <p class="foot">
     <b>Πηγή δεδομένων:</b> <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">Χάρτης Τροχαίων Συγκρούσεων, accidents.maps.gov.gr</a>
     (Υπουργείο Ψηφιακής Διακυβέρνησης, Υπουργείο Προστασίας του Πολίτη, Υπουργείο Υποδομών και Μεταφορών). Ανεπίσημο αντίγραφο, λήψη 13/11/2026. <span id="range"></span>
     💀 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚙 οδηγός/όχημα · 🚶‍♀️ πεζός · 🚙🌧️ οδός &amp; καιρός · 🚙⚖️ υπό εκδίκαση.
-    Κάντε ζουμ και κλικ σε ένα σημείο για λεπτομέρειες.
+    Οι κύκλοι με αριθμό ομαδοποιούν κοντινές συγκρούσεις (πιο σκούρο κόκκινο = μεγαλύτερο ποσοστό Fatal 5)· πατήστε για ζουμ. Τα εικονίδια εμφανίζονται σε κοντινό ζουμ· πατήστε ένα σημείο για λεπτομέρειες.
     <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
   </p>
   </div>
@@ -201,29 +223,65 @@ function toGeoJSON(d, kind) {
   }
   const features = d.groups.map((ix, g) => {
     const i = ix[0];
-    return { type: 'Feature', properties: { g, n: ix.length, f: kind === 'c' ? d.mark[d.c[i]] : 0, k: kind },
+    const fatal = kind === 'c' && d.isFatal[d.c[i]];
+    return { type: 'Feature', properties: { g, n: ix.length, f: kind === 'c' ? d.mark[d.c[i]] : 0, k: kind,
+        cat: kind === 'c' ? d.cat[d.c[i]] : 0, fa: fatal ? ix.length : 0 },
       geometry: { type: 'Point', coordinates: [d.x[i] / 1e5, d.y[i] / 1e5] } };
   });
   return { type: 'FeatureCollection', features, total };
 }
 
+// Collisions are drawn in stages: heatmap (country) -> count bubbles (region, city) -> coloured dots
+// (neighbourhood) -> emoji markers (street, zoom 16+). Transports keep the simpler heatmap -> dots.
+const CAT_COLOR = ['match', ['get', 'cat'], 1, '#8a0303', 2, '#f08a24', 3, '#7b3fb5', 4, '#2f7f9e', '#8a8f98'];
+const EMOJI_ZOOM = 16;
 function addLayers(id, color, deep) {
-  map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  map.addLayer({ id: id + '-heat', type: 'heatmap', source: id, maxzoom: 12,
+  const staged = id === 'col';
+  const empty = { type: 'FeatureCollection', features: [] };
+  map.addSource(id, { type: 'geojson', data: empty });
+  map.addLayer({ id: id + '-heat', type: 'heatmap', source: id, maxzoom: staged ? 10.5 : 12,
     paint: {
       'heatmap-weight': ['get', 'n'],
       'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 4, 0.15, 8, 0.5, 12, 1.2],
       'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 8, 8, 12, 16],
       'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
         0, 'rgba(0,0,0,0)', 0.15, color + '66', 0.5, color + 'cc', 1, deep],
-      'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.9, 12, 0]
+      'heatmap-opacity': staged ? ['interpolate', ['linear'], ['zoom'], 8.5, 0.9, 10.5, 0]
+                                : ['interpolate', ['linear'], ['zoom'], 10, 0.9, 12, 0]
     }});
-  map.addLayer({ id: id + '-pt', type: 'circle', source: id, minzoom: 10,
+  if (staged) {
+    // same features again, clustered up to zoom 13; each cluster sums its collisions and its Fatal Five ones
+    map.addSource('colc', { type: 'geojson', data: empty, cluster: true, clusterMaxZoom: 13, clusterRadius: 55,
+      clusterProperties: { sum: ['+', ['get', 'n']], fatal: ['+', ['get', 'fa']] } });
+    map.addLayer({ id: 'col-dot', type: 'circle', source: 'colc', minzoom: 8.5, maxzoom: EMOJI_ZOOM,
+      filter: ['!', ['has', 'point_count']],
+      layout: { 'circle-sort-key': ['+', ['case', ['==', ['get', 'cat'], 1], 100, 0], ['get', 'n']] },
+      paint: {
+        'circle-color': CAT_COLOR,
+        'circle-radius': ['interpolate', ['linear'], ['zoom'],
+          9, ['+', 2, ['sqrt', ['get', 'n']]], 16, ['+', 4, ['*', 2.2, ['sqrt', ['get', 'n']]]]],
+        'circle-opacity': 0.85,
+        'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff'
+      }});
+    map.addLayer({ id: 'cl-bubble', type: 'circle', source: 'colc', minzoom: 8.5, filter: ['has', 'point_count'],
+      paint: {
+        // shade by the share of Fatal Five collisions in the bubble
+        'circle-color': ['interpolate', ['linear'], ['/', ['get', 'fatal'], ['get', 'sum']],
+          0, '#e9a06f', 0.5, '#cf4a2c', 1, '#8a0303'],
+        'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'sum']], 1, 11, 10, 18, 40, 30, 100, 42],
+        'circle-opacity': 0.9, 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff'
+      }});
+    map.addLayer({ id: 'cl-count', type: 'symbol', source: 'colc', minzoom: 8.5, filter: ['has', 'point_count'],
+      layout: { 'text-field': ['to-string', ['get', 'sum']], 'text-font': ['Noto Sans Bold'], 'text-size': 13,
+        'text-allow-overlap': true },
+      paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0,0,0,.35)', 'text-halo-width': 1 }});
+  }
+  map.addLayer({ id: id + '-pt', type: 'circle', source: staged ? 'colc' : id, minzoom: staged ? EMOJI_ZOOM : 10,
     filter: ['all', ['==', ['get', 'f'], 0], ['==', ['get', 'n'], 1]],
     paint: {
-      'circle-color': color,
+      'circle-color': staged ? CAT_COLOR : color,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 4, 17, 7],
-      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 0.8],
+      'circle-opacity': staged ? 0.85 : ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 0.8],
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 13, 0, 15, 1],
       'circle-stroke-color': '#ffffff'
     }});
@@ -285,13 +343,12 @@ function addSirenLayer() {
     layout: { 'icon-image': imageId, 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ICON_SIZE },
     paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
   // collisions with a category icon, and grouped uncategorised ones (dot + count)
-  map.addLayer({ id: 'col-icon', type: 'symbol', source: 'col', minzoom: 10,
+  map.addLayer({ id: 'col-icon', type: 'symbol', source: 'colc', minzoom: EMOJI_ZOOM,
     filter: ['any', ['>', ['get', 'f'], 0], ['>', ['get', 'n'], 1]],
     layout: {
       'icon-image': imageId, 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ICON_SIZE,
       'symbol-sort-key': ['get', 'n']            // bigger groups drawn on top
-    },
-    paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
+    }});
   // fan-out of an opened group
   map.addSource('spider', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'spider-legs', type: 'line', source: 'spider', filter: ['==', ['geometry-type'], 'LineString'],
@@ -332,6 +389,7 @@ function refresh() {
   const gc = state.showCol ? toGeoJSON(c, 'c') : empty;
   const gt = state.showTra ? toGeoJSON(t, 't') : empty;
   map.getSource('col').setData(gc);
+  map.getSource('colc').setData(gc);
   map.getSource('tra').setData(gt);
   document.getElementById('nCol').textContent = state.showCol ? fmt.format(gc.total) : '–';
   document.getElementById('nTra').textContent = state.showTra ? fmt.format(gt.total) : '–';
@@ -346,6 +404,42 @@ function refresh() {
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', state.years.has(+b.dataset.y));
   });
+  updateTop();
+}
+
+// The ten spots (exact coordinates) with the most collisions inside the current view, for the current filters.
+function updateTop() {
+  const el = document.getElementById('top'), d = DATA.collisions;
+  el.textContent = '';
+  if (!state.showCol || !d.groups) return;
+  const b = map.getBounds(), w = b.getWest() * 1e5, e = b.getEast() * 1e5, s0 = b.getSouth() * 1e5, n0 = b.getNorth() * 1e5;
+  const spots = new Map();
+  for (const ix of d.groups) {
+    const i = ix[0], x = d.x[i], y = d.y[i];
+    if (x < w || x > e || y < s0 || y > n0) continue;
+    const key = x + ',' + y;
+    let sp = spots.get(key);
+    if (!sp) spots.set(key, sp = { key, i, n: 0, fa: 0, ix: [] });
+    sp.n += ix.length; if (d.isFatal[d.c[i]]) sp.fa += ix.length;
+    sp.ix.push(...ix);
+  }
+  const top = [...spots.values()].filter(sp => sp.n > 1).sort((p, q) => q.n - p.n).slice(0, 10);
+  if (!top.length) { const li = document.createElement('li'); li.className = 'none'; li.textContent = 'Κανένα σημείο με πάνω από μία σύγκρουση εδώ.'; el.appendChild(li); return; }
+  for (const sp of top) {
+    const li = document.createElement('li'), bt = document.createElement('button');
+    bt.type = 'button';
+    const nm = document.createElement('span'); nm.textContent = d.places[d.o[sp.i]];
+    const ct = document.createElement('span'); ct.className = 'n';
+    ct.textContent = sp.n + (sp.fa ? ' · ' + sp.fa + ' 💀' : '');
+    bt.append(nm, ct);
+    bt.onclick = () => {
+      const at = [d.x[sp.i] / 1e5, d.y[sp.i] / 1e5];
+      panelEl.classList.add('collapsed');
+      map.once('moveend', () => openSpider('c', sp.ix, at, 'top' + sp.key));
+      map.flyTo({ center: at, zoom: 17 });
+    };
+    li.appendChild(bt); el.appendChild(li);
+  }
 }
 
 function buildYears() {
@@ -442,6 +536,9 @@ async function load(name) {
   d.yr = d.t.map(yearOf);             // year of each record
   d.fatal = d.fatal || [];
   d.isFatal = d.causes.map((_, i) => d.fatal.includes(i));
+  // colour class: 1 Fatal Five, 2 other driver/vehicle, 3 pedestrian, 4 road & weather, 5 pending trial and the rest
+  d.cat = d.causes.map((n, i) => d.isFatal[i] ? 1 : isDriver(n) ? 2 : n.startsWith('ΠΕΖΟΣ-') ? 3 :
+    n.startsWith('ΟΔΟΣ&ΚΑΙΡΟΣ-') ? 4 : 5);
   d.mark = d.causes.map((n, i) => {
     const e = iconFor(n, d.isFatal[i]);
     if (!e) return 0;
@@ -461,7 +558,7 @@ Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('lo
   document.getElementById('range').textContent =
     'Συγκρούσεις ' + md.format(c0 * 60000) + '–' + md.format(c1 * 60000) +
     ', διακομιδές ' + md.format(t0 * 60000) + '–' + md.format(t1 * 60000) + '.';
-  const CLICKABLE = ['spider-icon', 'col-icon', 'col-pt', 'tra-icon', 'tra-pt'];
+  const CLICKABLE = ['spider-icon', 'cl-bubble', 'col-icon', 'col-pt', 'col-dot', 'tra-icon', 'tra-pt'];
   const hits = (pt) => map.queryRenderedFeatures(pt, { layers: CLICKABLE.filter(l => map.getLayer(l)) });
   const hit = (pt) => hits(pt)[0];
   map.on('click', (e) => {
@@ -469,6 +566,12 @@ Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('lo
     if (!all.length) { closeSpider(); return; }
     const leaf = all.find(f => f.layer.id === 'spider-icon');
     if (leaf) return popup(leaf.properties.k, leaf.properties.i, leaf.geometry.coordinates);
+    const bubble = all.find(f => f.layer.id === 'cl-bubble');
+    if (bubble) {          // a count bubble zooms in until it splits
+      map.getSource('colc').getClusterExpansionZoom(bubble.properties.cluster_id)
+        .then(z => map.easeTo({ center: bubble.geometry.coordinates, zoom: z + 0.3 }));
+      return;
+    }
     // Take the biggest marker under the finger, then everything stacked at exactly that spot
     // (other causes recorded at the same coordinates), and fan them all out together.
     const top = all.reduce((a, b) => (b.properties.n > a.properties.n ? b : a));
@@ -490,6 +593,7 @@ Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('lo
   });
   map.on('mousemove', (e) => { map.getCanvas().style.cursor = hit(e.point) ? 'pointer' : ''; });
   map.on('zoomstart', closeSpider);
+  map.on('moveend', updateTop);
   document.getElementById('showCol').onchange = (e) => { state.showCol = e.target.checked; refresh(); };
   document.getElementById('showTra').onchange = (e) => { state.showTra = e.target.checked; refresh(); };
   refresh();

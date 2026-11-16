@@ -2,7 +2,7 @@
 import { VectorTile } from 'https://esm.sh/@mapbox/vector-tile@2.0.3';
 import Pbf from 'https://esm.sh/pbf@4.0.1';
 
-export const GRAPH_VERSION = 5;
+export const GRAPH_VERSION = 6;
 
 // Area (Athens basin), tile zoom and analysis settings.
 const BBOX = [23.56, 37.85, 23.90, 38.12];
@@ -279,7 +279,7 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   for (const e of EDGES) for (const p of [e.pts[0], e.pts[e.pts.length - 1]]) jdeg.set(p, (jdeg.get(p) || 0) + 1);
   for (const [p, d] of jdeg) if (d >= 3) { const g = gk(Math.floor(NX[p] / CELL), Math.floor(NY[p] / CELL)); let arr = jgrid.get(g); if (!arr) jgrid.set(g, arr = []); arr.push(p); }
   EDGES.forEach((e, id) => {
-    e.col = 0; e.fat = 0;
+    e.col = 0; e.fat = 0; e.c20 = 0;
     for (let i = 1; i < e.pts.length; i++) {
       const ax = NX[e.pts[i - 1]], ay = NY[e.pts[i - 1]], bx = NX[e.pts[i]], by = NY[e.pts[i]];
       for (let cx = Math.floor((Math.min(ax, bx) - R) / CELL); cx <= Math.floor((Math.max(ax, bx) + R) / CELL); cx++)
@@ -294,6 +294,18 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
     const lon = col.x[i] / 1e5, lat = col.y[i] / 1e5;
     if (lon < BBOX[0] || lon > BBOX[2] || lat < BBOX[1] || lat > BBOX[3]) continue;
     const X = toX(lon), Y = toY(lat), cx = Math.floor(X / CELL), cy = Math.floor(Y / CELL), isF = fatal.has(col.c[i]);
+    // original count used by ride.html: the collision counts for every street within 20 m
+    {
+      const arr0 = grid.get(gk(cx, cy)), hit = new Set();
+      for (let k = 0; arr0 && k < arr0.length; k += 2) {
+        if (hit.has(arr0[k])) continue;
+        const e = EDGES[arr0[k]], j = arr0[k + 1];
+        const ax = NX[e.pts[j - 1]], ay = NY[e.pts[j - 1]], dx = NX[e.pts[j]] - ax, dy = NY[e.pts[j]] - ay;
+        const t = Math.max(0, Math.min(1, ((X - ax) * dx + (Y - ay) * dy) / (dx * dx + dy * dy || 1)));
+        if (Math.hypot(X - ax - t * dx, Y - ay - t * dy) <= R) hit.add(arr0[k]);
+      }
+      for (const id of hit) EDGES[id].c20++;
+    }
     let bj = -1, bjd = R;
     for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const p of jgrid.get(gk(cx + dx, cy + dy)) || []) {
       const d = Math.hypot(NX[p] - X, NY[p] - Y); if (d <= bjd) { bjd = d; bj = p; }
@@ -362,7 +374,7 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   // ---------- 6. compact output: junction nodes, edges, simplified geometry with heights
   const remap = new Map(), nx = [], ny = [], nz = [], nc = [], nf = [], nr = [];
   const nid = (p, zz) => { let id = remap.get(p); if (id === undefined) { id = nx.length; remap.set(p, id); nx.push(NX[p]); ny.push(NY[p]); nz.push(Math.round(zz * 10)); nc.push(JCOL.get(p) || 0); nf.push(JFAT.get(p) || 0); nr.push(Math.round((JRISK.get(p) || 0) * 100)); } return id; };
-  const out = { a: [], b: [], len: [], cls: [], ow: [], col: [], fat: [], rk: [], up: [], dn: [], su: [], sd: [], go: [], g: [] };
+  const out = { a: [], b: [], len: [], cls: [], ow: [], col: [], fat: [], c20: [], rk: [], up: [], dn: [], su: [], sd: [], go: [], g: [] };
   const dp = (pts, lo, hi, keep) => {
     let md = 0, mi = -1;
     const ax = NX[pts[lo]], ay = NY[pts[lo]], dx = NX[pts[hi]] - ax, dy = NY[pts[hi]] - ay, L2 = dx * dx + dy * dy || 1;
@@ -376,7 +388,7 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   for (const e of EDGES) {
     const n = e.pts.length, a = nid(e.pts[0], e.z[0]), b = nid(e.pts[n - 1], e.z[n - 1]);
     out.a.push(a); out.b.push(b); out.len.push(Math.max(1, Math.round(e.len))); out.cls.push(e.cls); out.ow.push(e.ow);
-    out.col.push(e.col); out.fat.push(e.fat); out.rk.push(Math.round(e.rk * 100));
+    out.col.push(e.col); out.fat.push(e.fat); out.c20.push(e.c20); out.rk.push(Math.round(e.rk * 100));
     out.up.push(Math.round(e.up * 10)); out.dn.push(Math.round(e.dn * 10)); out.su.push(Math.round(e.su * 10)); out.sd.push(Math.round(e.sd * 10));
     out.go.push(out.g.length);
     const keep = new Uint8Array(n); dp(e.pts, 0, n - 1, keep);

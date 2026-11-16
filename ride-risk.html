@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#161b22">
+<title>Διαδρομή με ποδήλατο κατά κίνδυνο περιοχής — Δεν είναι ατύχημα</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root{--bg:#0e1116;--panel:#161b22f2;--line:#2a313c;--text:#e8ecf1;--muted:#8b96a5;--accent:#ffd23f;--safe:#16a34a;--risk:#dc2626}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+  #map{position:absolute;inset:0}
+  .panel{position:absolute;top:12px;left:12px;z-index:5;width:340px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);
+    overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;backdrop-filter:blur(6px)}
+  h1{font-size:18px;line-height:1.25;margin:0 0 4px}
+  h1 em{font-style:normal;color:#4fd08a}
+  .hint{margin:0 0 10px;font-size:12.5px;color:var(--muted);line-height:1.4}
+  .pts{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;font-size:13px}
+  .pin{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff;border:2px solid #fff}
+  .pin.a{background:var(--safe)} .pin.b{background:var(--risk)}
+  .pts span{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pts span.set{color:var(--text)}
+  .row{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .row button,.seg button{flex:1 0 auto;padding:8px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;font-size:12.5px;cursor:pointer}
+  .row button:hover,.seg button:hover{border-color:var(--accent)}
+  .row button:disabled{opacity:.45;cursor:default}
+  .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:12px 0 5px}
+  .seg{display:flex;gap:4px}
+  .seg button.on{border-color:var(--accent);background:#2a2410;font-weight:600}
+  .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .sum b{display:block;font-size:18px;font-variant-numeric:tabular-nums}
+  .sum span{font-size:11px;color:var(--muted)}
+  .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:10px;background:#2a313c}
+  .bar i{display:block;height:100%}
+  .barl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
+  #prof{display:block;width:100%;height:110px;margin-top:2px;touch-action:none}
+  .msg{font-size:12.5px;color:var(--accent);margin-top:10px;min-height:1em}
+  .foot{margin:12px 0 0;font-size:11px;color:var(--muted);line-height:1.45}
+  .foot a{color:#b9c4d2}
+  .lg{display:flex;gap:12px;font-size:11px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
+  .lg i{display:inline-block;width:18px;height:0;border-top:4px solid;vertical-align:middle;margin-right:5px}
+  .maplibregl-popup-content{background:#161b22;color:var(--text);border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .maplibregl-popup-tip{border-top-color:#161b22!important;border-bottom-color:#161b22!important}
+  .mk{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);display:grid;place-items:center;cursor:grab}
+  .mk b{transform:rotate(45deg);color:#fff;font:700 13px system-ui}
+  .mk.a{background:var(--safe)} .mk.b{background:var(--risk)}
+  @media (max-width:700px){
+    .panel{top:auto;left:0;right:0;bottom:0;width:100%;max-width:none;max-height:52vh;max-height:52dvh;border-radius:14px 14px 0 0;
+      border-width:1px 0 0;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+    .maplibregl-ctrl-bottom-right{bottom:calc(52vh + 4px)}
+    .hint{display:none}
+    /* on phones the route summary comes right under the title, before the options */
+    .panel{display:flex;flex-direction:column}
+    .panel > *{order:2} .panel > h1{order:0} #result{order:1;margin-bottom:6px}
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<aside class="panel">
+  <h1>Διαδρομή με ποδήλατο από <em>ασφαλέστερους δρόμους</em></h1>
+  <p class="hint">Πατήστε στον χάρτη για αφετηρία και μετά για προορισμό. Σύρετε τα σημεία για αλλαγή. Η διαδρομή αποφεύγει δρόμους και διασταυρώσεις ανάλογα με τις συγκρούσεις γύρω τους, τηρεί τους μονόδρομους και λογαριάζει τις ανηφόρες.</p>
+
+  <div class="pts">
+    <div class="pin a">Α</div><span id="ptA">Πατήστε στον χάρτη…</span>
+    <div class="pin b">Β</div><span id="ptB">…και ξανά για προορισμό</span>
+  </div>
+  <div class="row">
+    <button type="button" id="bLoc">◎ Από τη θέση μου</button>
+    <button type="button" id="bSwap" disabled>⇅ Αντιστροφή</button>
+    <button type="button" id="bClear" disabled>✕ Καθαρισμός</button>
+  </div>
+
+  <div class="label">Προτεραιότητα</div>
+  <div class="seg" data-opt="safety">
+    <button type="button" data-v="2" class="on">Ασφάλεια</button><button type="button" data-v="1">Ισορροπία</button><button type="button" data-v="0">Συντομία</button>
+  </div>
+  <div class="label">Ανηφόρες</div>
+  <div class="seg" data-opt="hills">
+    <button type="button" data-v="1" class="on">Κανονικά</button><button type="button" data-v="2">Αποφυγή</button>
+  </div>
+
+  <div class="msg" id="msg">Φόρτωση οδικού δικτύου…</div>
+
+  <div id="result" hidden>
+    <div class="sum">
+      <div><b id="sDist">–</b><span>χλμ.</span></div>
+      <div><b id="sTime">–</b><span>λεπτά (περίπου)</span></div>
+      <div><b id="sUp">–</b><span>μ. ανάβαση / <span id="sDn"></span> κατάβαση</span></div>
+    </div>
+    <div class="bar" id="tbar"></div>
+    <div class="barl"><span id="lSafe"></span><span id="lRisk"></span></div>
+    <div class="label" style="margin-top:12px">Υψομετρικό προφίλ</div>
+    <svg id="prof" viewBox="0 0 300 110" aria-label="Υψομετρικό προφίλ διαδρομής"></svg>
+    <div class="row">
+      <button type="button" id="bGpx">Λήψη GPX</button>
+      <button type="button" id="bGoogle">Google Maps</button>
+      <button type="button" id="bShare">Αντιγραφή συνδέσμου</button>
+    </div>
+  </div>
+
+  <div class="label">Κίνδυνος (συγκρούσεις στη γύρω περιοχή)</div>
+  <div class="lg"><span><i style="border-color:#16a34a"></i>Πολύ χαμηλός</span><span><i style="border-color:#eab308"></i>Χαμηλός</span><span><i style="border-color:#f97316"></i>Μέτριος</span><span><i style="border-color:#dc2626"></i>Υψηλός</span><span><i style="border-color:#7f1d1d"></i>Πολύ υψηλός</span>
+    <label style="cursor:pointer"><input type="checkbox" id="cNet" checked style="vertical-align:middle;accent-color:var(--accent)"> Εμφάνιση δικτύου</label></div>
+
+  <p class="foot">
+    Κίνδυνος = οι συγκρούσεις 10/2020–05/2025 γύρω από κάθε δρόμο, με βάρος που μειώνεται με την απόσταση (περίπου 100 μ.). Έτσι ένας δρόμος που οδηγεί σε πολυσύχναστη διασταύρωση ή περνά δίπλα σε επικίνδυνη λεωφόρο δεν φαίνεται ασφαλής. Πράσινο σημαίνει ελάχιστες συγκρούσεις τριγύρω, όχι εγγύηση ασφάλειας.
+    Δεν περιλαμβάνονται ποδηλατόδρομοι, πεζόδρομοι, αυτοκινητόδρομοι και σήραγγες. Καλύπτει το λεκανοπέδιο της Αθήνας.
+    Δρόμοι © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · υψόμετρα AWS Terrain Tiles ·
+    συγκρούσεις <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">accidents.maps.gov.gr</a>.
+  </p>
+</aside>
+
+<script>
+const WORLD = 2 ** 14 * 4096;
+const lonOf = (X) => X / WORLD * 360 - 180;
+const latOf = (Y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * Y / WORLD))) * 180 / Math.PI;
+const toX = (lon) => (lon + 180) / 360 * WORLD;
+const toY = (lat) => (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * WORLD;
+const MPU = 40075016.686 / WORLD * Math.cos(38.12 * Math.PI / 180);     // metres per unit, slight under-estimate (keeps A* exact)
+const MPU_D = 40075016.686 / WORLD * Math.cos(38 * Math.PI / 180);      // metres per unit for measuring distance
+const fmt1 = new Intl.NumberFormat('el-GR', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const fmt0 = new Intl.NumberFormat('el-GR', { maximumFractionDigits: 0 });
+const $ = (id) => document.getElementById(id);
+const msg = (t) => { $('msg').textContent = t || ''; };
+
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } } };
+
+const map = new maplibregl.Map({ container: 'map', style: 'https://tiles.openfreemap.org/styles/positron',
+  center: [23.735, 37.98], zoom: 12, minZoom: 10, maxZoom: 18, attributionControl: { compact: true } });
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+const geo = new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true, showAccuracyCircle: true });
+map.addControl(geo, 'top-right');
+
+// ---------- risk classes from exposure: collisions in the surrounding ~100 m (distance-weighted), Oct 2020 – May 2025
+// A street next to a busy junction or avenue carries that risk; only genuinely quiet streets are green.
+const TIER_COLOR = ['#16a34a', '#eab308', '#f97316', '#dc2626', '#7f1d1d'];
+const TIER_NAME = ['Πολύ χαμηλός', 'Χαμηλός', 'Μέτριος', 'Υψηλός', 'Πολύ υψηλός'];
+const TIER_EDGE = [0.5, 1.5, 3.5, 8];
+const tierOf = (x) => (x < TIER_EDGE[0] ? 0 : x < TIER_EDGE[1] ? 1 : x < TIER_EDGE[2] ? 2 : x < TIER_EDGE[3] ? 3 : 4);
+const edgeTier = (e) => tierOf(G.E.rk[e] / 100);
+const nodeTier = (n) => tierOf(G.NR[n] / 100);
+
+// ---------- graph
+let G = null;
+// The graph comes from, in order: a published data/bike-graph.json, a copy saved on this device,
+// or a build in the browser (first visit only), which is then saved on this device.
+const IDB = {
+  open() { return new Promise((ok, no) => { const r = indexedDB.open('ride', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); },
+  async get(k) { const db = await this.open(); return new Promise((ok, no) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }); },
+  async set(k, v) { const db = await this.open(); return new Promise((ok, no) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = ok; t.onerror = () => no(t.error); }); }
+};
+const MAX_AGE_DAYS = 60, GRAPH_V = 6;   // GRAPH_V must match GRAPH_VERSION in tools/bike-graph-lib.js
+async function getGraphData() {
+  // the version in the address makes browsers fetch the builder again whenever it changes
+  const { buildGraph, GRAPH_VERSION } = await import('./tools/bike-graph-lib.js?v=' + GRAPH_V);
+  try { const r = await fetch('data/bike-graph.json', { cache: 'no-cache' }); if (r.ok) { const d = await r.json(); if (d.v === GRAPH_V) return d; } } catch (e) { /* not published */ }
+  let saved = null;
+  try { saved = await IDB.get('graph'); } catch (e) { /* storage unavailable */ }
+  if (saved && saved.v === GRAPH_V && (Date.now() - Date.parse(saved.built)) / 864e5 < MAX_AGE_DAYS) return saved;
+  msg('Πρώτη χρήση σε αυτή τη συσκευή: κατεβάζω τον χάρτη δρόμων (~27 MB) και τον επεξεργάζομαι, περίπου 10–30 δευτερόλεπτα…');
+  const steps = { 'Streets read': 'Δρόμοι: ✓', 'Edges': 'Συνδέσεις: ✓', 'Terrain': 'Υψόμετρα: ✓', 'Collisions placed': 'Συγκρούσεις: ✓' };
+  const d = await buildGraph({ collisionsUrl: 'data/collisions.json',
+    log: (t) => { const m = /^\s*(\d+)\/(\d+) tiles/.exec(t); if (m) msg('Κατέβασμα χάρτη δρόμων: ' + Math.round(100 * m[1] / m[2]) + '%…');
+      for (const k in steps) if (t.startsWith(k)) msg(steps[k] + ' …'); } });
+  try { await IDB.set('graph', d); } catch (e) { /* could not save: it will be rebuilt next time */ }
+  return d;
+}
+async function loadGraph() {
+  const d = await getGraphData();
+  const nN = d.n.x.length, nE = d.e.a.length;
+  const NX = new Float64Array(nN), NY = new Float64Array(nN), NZ = new Float32Array(nN), NC = Int32Array.from(d.n.c), NR = Int32Array.from(d.n.r);
+  for (let i = 0, x = 0, y = 0; i < nN; i++) { x += d.n.x[i]; y += d.n.y[i]; NX[i] = x; NY[i] = y; NZ[i] = d.n.e[i] / 10; }
+  const E = d.e;
+  // directed arcs: every edge a->b, and b->a unless one-way
+  const deg = new Int32Array(nN);
+  for (let e = 0; e < nE; e++) { deg[E.a[e]]++; if (!E.ow[e]) deg[E.b[e]]++; }
+  const off = new Int32Array(nN + 1);
+  for (let i = 0; i < nN; i++) off[i + 1] = off[i] + deg[i];
+  const nA = off[nN], head = new Int32Array(nA), aEdge = new Int32Array(nA), aRev = new Uint8Array(nA), pos = off.slice(0, nN);
+  for (let e = 0; e < nE; e++) {
+    let k = pos[E.a[e]]++; head[k] = E.b[e]; aEdge[k] = e; aRev[k] = 0;
+    if (!E.ow[e]) { k = pos[E.b[e]]++; head[k] = E.a[e]; aEdge[k] = e; aRev[k] = 1; }
+  }
+  // connected parts (ignoring direction), so taps snap onto the main network rather than an isolated stub
+  const par = new Int32Array(nN); for (let i = 0; i < nN; i++) par[i] = i;
+  const find = (i) => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+  for (let e = 0; e < nE; e++) { const a = find(E.a[e]), b = find(E.b[e]); if (a !== b) par[a] = b; }
+  const size = new Map(); for (let i = 0; i < nN; i++) { const r = find(i); size.set(r, (size.get(r) || 0) + 1); }
+  const comp = new Int32Array(nN); for (let i = 0; i < nN; i++) comp[i] = size.get(find(i));
+  // spatial index of junctions with at least one street
+  const CELL = 1024, cells = new Map();
+  for (let i = 0; i < nN; i++) {
+    const k = Math.floor(NX[i] / CELL) * 1e6 + Math.floor(NY[i] / CELL);
+    let arr = cells.get(k); if (!arr) cells.set(k, arr = []); arr.push(i);
+  }
+  G = { d, E, nN, nE, NX, NY, NZ, NC, NR, off, head, aEdge, aRev, comp, cells, CELL, cost: new Float64Array(nA), costKey: '' };
+}
+
+// shape of an edge in its stored direction: [[X, Y, z], ...]
+function shape(e) {
+  const { E, NX, NY, NZ } = G, g = E.g;
+  const a = E.a[e], b = E.b[e], pts = [[NX[a], NY[a], NZ[a]]];
+  const s = E.go[e], t = e + 1 < G.nE ? E.go[e + 1] : g.length;
+  let x = NX[a], y = NY[a], z = Math.round(NZ[a] * 10);
+  for (let i = s; i < t; i += 3) { x += g[i]; y += g[i + 1]; z += g[i + 2]; pts.push([x, y, z / 10]); }
+  pts.push([NX[b], NY[b], NZ[b]]);
+  return pts;
+}
+
+// ---------- costs (per directed arc), from the chosen options
+// A street costs its length, multiplied up by its exposure (riding past busy junctions and avenues), plus a
+// penalty for each junction crossed in proportion to its exposure, plus climbing in the direction of travel.
+const opts = { safety: +(store.get('riskride.safety') || 2), hills: +(store.get('riskride.hills') || 1) };
+function prepareCosts() {
+  const key = opts.safety + '/' + opts.hills;
+  if (G.costKey === key) return;
+  const { E, cost, aEdge, aRev, head, NR } = G;
+  const S = [0, 0.35, 1][opts.safety];
+  const A = 0.6, B = 25;                    // per unit of exposure: x0.6 street length; 25 m per junction crossed
+  const CLASS = [[0, 0, 0, 0], [0.4, 0.25, 0.1, 0], [0.8, 0.5, 0.2, 0]][opts.safety];   // busier road types
+  const HU = opts.hills === 2 ? 30 : 10, HS = opts.hills === 2 ? 80 : 25;                  // per metre climbed / steep metre
+  const et = new Uint8Array(G.nE); for (let e = 0; e < G.nE; e++) et[e] = edgeTier(e);
+  G.et = et;
+  for (let k = 0; k < cost.length; k++) {
+    const e = aEdge[k], len = E.len[e];
+    const up = (aRev[k] ? E.dn[e] : E.up[e]) / 10, steep = (aRev[k] ? E.sd[e] : E.su[e]) / 10;
+    cost[k] = len * (1 + CLASS[E.cls[e]] + S * A * E.rk[e] / 100) + S * B * NR[head[k]] / 100 + HU * up + HS * steep;
+  }
+  G.costKey = key;
+}
+
+// ---------- A* search
+function route(s, t) {
+  prepareCosts();
+  const { off, head, cost, NX, NY, nN } = G;
+  const dist = new Float64Array(nN).fill(Infinity), prev = new Int32Array(nN).fill(-1), done = new Uint8Array(nN);
+  const tx = NX[t], ty = NY[t], h = (i) => Math.hypot(NX[i] - tx, NY[i] - ty) * MPU;
+  const hk = [], hv = [];                                  // binary heap of (priority, node)
+  const push = (k, v) => { let i = hk.length; hk.push(k); hv.push(v);
+    while (i) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v; };
+  const pop = () => { const v = hv[0], k = hk.pop(), x = hv.pop(); const n = hk.length;
+    if (n) { let i = 0; for (;;) { let c = 2 * i + 1; if (c >= n) break; if (c + 1 < n && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = k; hv[i] = x; }
+    return v; };
+  dist[s] = 0; push(h(s), s);
+  while (hk.length) {
+    const u = pop();
+    if (done[u]) continue;
+    if (u === t) break;
+    done[u] = 1;
+    for (let k = off[u]; k < off[u + 1]; k++) {
+      const v = head[k], nd = dist[u] + cost[k];
+      if (nd < dist[v]) { dist[v] = nd; prev[v] = k; push(nd + h(v), v); }
+    }
+  }
+  if (!isFinite(dist[t])) return null;
+  const arcs = [];
+  for (let v = t; v !== s; v = G.aRev[prev[v]] ? G.E.b[G.aEdge[prev[v]]] : G.E.a[G.aEdge[prev[v]]]) arcs.push(prev[v]);
+  return arcs.reverse();
+}
+
+// nearest junction to a point, preferring the large connected network
+function snap(lngLat) {
+  const X = toX(lngLat.lng), Y = toY(lngLat.lat), { cells, CELL, NX, NY, comp } = G;
+  let best = -1, bd = Infinity;
+  const cx = Math.floor(X / CELL), cy = Math.floor(Y / CELL);
+  for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+    const arr = cells.get((cx + dx) * 1e6 + cy + dy); if (!arr) continue;
+    for (const i of arr) {
+      const d = Math.hypot(NX[i] - X, NY[i] - Y) * MPU + (comp[i] < 500 ? 400 : 0);
+      if (d < bd) { bd = d; best = i; }
+    }
+  }
+  return bd < 900 ? best : -1;
+}
+
+// ---------- map layers
+function netGeoJSON() {
+  const feats = [];
+  for (let e = 0; e < G.nE; e++) feats.push({ type: 'Feature', properties: { t: edgeTier(e) },
+    geometry: { type: 'LineString', coordinates: shape(e).map(([x, y]) => [lonOf(x), latOf(y)]) } });
+  return { type: 'FeatureCollection', features: feats };
+}
+function addLayers() {
+  const W = (a, b) => ['interpolate', ['linear'], ['zoom'], 11, a, 17, b];
+  map.addSource('net', { type: 'geojson', data: netGeoJSON() });
+  const TC = ['match', ['get', 't'], 0, TIER_COLOR[0], 1, TIER_COLOR[1], 2, TIER_COLOR[2], 3, TIER_COLOR[3], TIER_COLOR[4]];
+  map.addLayer({ id: 'net', type: 'line', source: 'net', minzoom: 11,
+    paint: { 'line-color': TC, 'line-width': W(0.5, 3),
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.3, 15, 0.65] } });
+  const jf = [];
+  for (let i = 0; i < G.nN; i++) if (G.NR[i] >= TIER_EDGE[2] * 100) jf.push({ type: 'Feature', properties: { t: nodeTier(i), n: G.NC[i] },
+    geometry: { type: 'Point', coordinates: [lonOf(G.NX[i]), latOf(G.NY[i])] } });
+  map.addSource('junc', { type: 'geojson', data: { type: 'FeatureCollection', features: jf } });
+  map.addLayer({ id: 'junc', type: 'circle', source: 'junc', minzoom: 13.5, filter: ['>=', ['get', 't'], 3],
+    paint: { 'circle-color': TC, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 13.5, 2.5, 17, 7],
+      'circle-stroke-width': 1, 'circle-stroke-color': '#fff', 'circle-opacity': 0.85 } });
+  map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'route-case', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' },
+    paint: { 'line-color': '#ffffff', 'line-width': W(6, 12) } });
+  map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' },
+    paint: { 'line-color': ['match', ['get', 't'], 0, TIER_COLOR[0], 1, TIER_COLOR[1], 2, TIER_COLOR[2], 3, TIER_COLOR[3], TIER_COLOR[4]], 'line-width': W(3.5, 7) } });
+  map.addSource('rjunc', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'rjunc', type: 'circle', source: 'rjunc',
+    paint: { 'circle-color': ['match', ['get', 't'], 1, TIER_COLOR[1], 2, TIER_COLOR[2], 3, TIER_COLOR[3], TIER_COLOR[4]],
+      'circle-radius': W(4, 8), 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } });
+  map.on('click', 'rjunc', (e) => { e.preventDefault(); const p = e.features[0].properties;
+    new maplibregl.Popup({ closeButton: false }).setLngLat(e.lngLat).setHTML('<b>Διασταύρωση ' + TIER_NAME[p.t].toLowerCase() + 'ς κινδύνου</b><br>' + p.n + ' ' + (p.n === 1 ? 'σύγκρουση' : 'συγκρούσεις') + ' πάνω της, 10/2020–05/2025').addTo(map); });
+  map.addSource('hover', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'hover', type: 'circle', source: 'hover', paint: { 'circle-radius': 6, 'circle-color': '#ffd23f', 'circle-stroke-width': 2, 'circle-stroke-color': '#161b22' } });
+}
+
+// ---------- points, markers
+const P = { a: null, b: null };
+const mk = (cls, letter) => { const el = document.createElement('div'); el.className = 'mk ' + cls; el.innerHTML = '<b>' + letter + '</b>'; return el; };
+const M = { a: null, b: null };
+function setPoint(which, lngLat, recalc = true) {
+  P[which] = lngLat ? { lng: +lngLat.lng.toFixed(5), lat: +lngLat.lat.toFixed(5) } : null;
+  if (M[which]) { M[which].remove(); M[which] = null; }
+  if (P[which]) {
+    M[which] = new maplibregl.Marker({ element: mk(which, which === 'a' ? 'Α' : 'Β'), draggable: true, anchor: 'bottom-left', offset: [-2, 2] })
+      .setLngLat(P[which]).addTo(map);
+    M[which].on('dragend', () => setPoint(which, M[which].getLngLat()));
+  }
+  $('pt' + which.toUpperCase()).textContent = P[which] ? P[which].lat.toFixed(5) + ', ' + P[which].lng.toFixed(5) : (which === 'a' ? 'Πατήστε στον χάρτη…' : '…και ξανά για προορισμό');
+  $('pt' + which.toUpperCase()).classList.toggle('set', !!P[which]);
+  $('bSwap').disabled = !(P.a && P.b); $('bClear').disabled = !(P.a || P.b);
+  if (recalc) compute();
+}
+
+// ---------- compute and show a route
+let last = null;
+function compute() {
+  saveState();
+  if (!G) return;
+  if (!(P.a && P.b)) { clearRoute(); msg(P.a ? 'Πατήστε για προορισμό.' : 'Πατήστε στον χάρτη για αφετηρία.'); return; }
+  const s = snap(P.a), t = snap(P.b);
+  if (s < 0 || t < 0) { clearRoute(); msg('Το σημείο είναι εκτός της περιοχής που καλύπτεται (λεκανοπέδιο Αθήνας) ή μακριά από δρόμο.'); return; }
+  if (s === t) { clearRoute(); msg('Αφετηρία και προορισμός είναι στο ίδιο σημείο.'); return; }
+  const t0node = s, arcs = route(s, t);
+  if (!arcs) { clearRoute(); msg('Δεν βρέθηκε διαδρομή που να τηρεί τους μονόδρομους. Δοκιμάστε λίγο διαφορετικά σημεία.'); return; }
+  // stitch the shape, with distance and height along it
+  prepareCosts();
+  const pts = [], runs = [], km = [0, 0, 0, 0, 0], jun = [];
+  let dist = 0, up = 0, dn = 0;
+  for (const k of arcs) {
+    const e = G.aEdge[k], rev = G.aRev[k], sh = shape(e); if (rev) sh.reverse();
+    const t = G.et[e], len = G.E.len[e], h = G.head[k];
+    up += (rev ? G.E.dn[e] : G.E.up[e]) / 10; dn += (rev ? G.E.up[e] : G.E.dn[e]) / 10;
+    km[t] += len;
+    if (nodeTier(h) >= 3 && h !== t0node) jun.push(h);
+    const coords = [];
+    sh.forEach(([x, y, z], i) => {
+      if (pts.length && i === 0) { coords.push([lonOf(x), latOf(y)]); return; }
+      if (pts.length) dist += Math.hypot(x - pts[pts.length - 1].x, y - pts[pts.length - 1].y) * MPU_D;
+      pts.push({ x, y, z, d: dist, t }); coords.push([lonOf(x), latOf(y)]);
+    });
+    if (runs.length && runs[runs.length - 1].t === t) runs[runs.length - 1].coords.push(...coords.slice(1));
+    else runs.push({ t, coords });
+  }
+  const total = km.reduce((a, b) => a + b, 0);
+  last = { pts, total, up, dn, km, jun };
+  map.getSource('route').setData({ type: 'FeatureCollection', features: runs.map(r => ({ type: 'Feature', properties: { t: r.t }, geometry: { type: 'LineString', coordinates: r.coords } })) });
+  map.getSource('rjunc').setData({ type: 'FeatureCollection', features: jun.map(n => ({ type: 'Feature', properties: { t: nodeTier(n), n: G.NC[n] },
+    geometry: { type: 'Point', coordinates: [lonOf(G.NX[n]), latOf(G.NY[n])] } })) });
+  const mins = total / 4.4 / 60 + up * 4 / 60;               // ~16 km/h on the flat, + ~4 s per metre climbed
+  $('sDist').textContent = fmt1.format(total / 1000);
+  $('sTime').textContent = fmt0.format(Math.max(1, mins));
+  $('sUp').textContent = fmt0.format(up); $('sDn').textContent = fmt0.format(dn);
+  $('tbar').innerHTML = km.map((m, t) => m ? `<i style="width:${(100 * m / total).toFixed(2)}%;background:${TIER_COLOR[t]}" title="${TIER_NAME[t]}: ${fmt1.format(m / 1000)} χλμ."></i>` : '').join('');
+  $('lSafe').textContent = Math.round(100 * (km[0] + km[1]) / total) + '% χαμηλός κίνδυνος';
+  const bad = km[3] + km[4];
+  $('lRisk').textContent = fmt1.format(bad / 1000) + ' χλμ. υψηλός · ' + jun.length + ' επικίνδυνες διασταυρώσεις';
+  drawProfile();
+  $('result').hidden = false;
+  msg('');
+}
+function clearRoute() {
+  last = null; $('result').hidden = true;
+  if (map.getSource('route')) map.getSource('route').setData({ type: 'FeatureCollection', features: [] });
+  if (map.getSource('rjunc')) map.getSource('rjunc').setData({ type: 'FeatureCollection', features: [] });
+}
+
+// elevation chart in the style of Google / Apple Maps: filled area, height and distance axes, cursor on hover
+function drawProfile() {
+  const svg = $('prof'), { pts } = last, W = Math.max(240, Math.round(svg.getBoundingClientRect().width || 300)), H = 110;
+  const L = 34, R = 6, T = 8, B = 18, w = W - L - R, h = H - T - B;
+  const zs = pts.map(p => p.z), zmin0 = Math.min(...zs), zmax0 = Math.max(...zs);
+  const step = [5, 10, 20, 25, 50, 100, 200].find(s => (zmax0 - zmin0) / s <= 4) || 500;
+  const zmin = Math.floor(zmin0 / step) * step, zmax = Math.max(zmin + step, Math.ceil(zmax0 / step) * step);
+  const D = pts[pts.length - 1].d || 1;
+  const X = (d) => L + d / D * w, Y = (z) => T + h - (z - zmin) / (zmax - zmin) * h;
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + X(p.d).toFixed(1) + ',' + Y(p.z).toFixed(1)).join('');
+  let g = `<defs><linearGradient id="pf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4c8df6" stop-opacity=".45"/><stop offset="1" stop-color="#4c8df6" stop-opacity=".05"/></linearGradient></defs>`;
+  for (let z = zmin; z <= zmax + 1e-6; z += step) g += `<line x1="${L}" x2="${W - R}" y1="${Y(z)}" y2="${Y(z)}" stroke="#2a313c"/><text x="${L - 5}" y="${Y(z) + 3.5}" text-anchor="end" fill="#8b96a5" font-size="10">${fmt0.format(z)}</text>`;
+  g += `<path d="${line}L${X(D)},${T + h}L${L},${T + h}Z" fill="url(#pf)"/><path d="${line}" fill="none" stroke="#4c8df6" stroke-width="2" stroke-linejoin="round"/>`;
+  const kstep = [0.5, 1, 2, 5, 10, 20].find(s => D / 1000 / s <= 5) || 50;
+  for (let k = 0; k <= D / 1000 + 1e-6; k += kstep) g += `<text x="${X(k * 1000)}" y="${H - 4}" text-anchor="${k ? 'middle' : 'start'}" fill="#8b96a5" font-size="10">${fmt1.format(k).replace(',0', '')}${k ? '' : ' χλμ.'}</text>`;
+  g += `<text x="${L - 5}" y="${T - 0.5}" text-anchor="end" fill="#8b96a5" font-size="9">μ.</text>`;
+  g += `<line id="pl" x1="-10" x2="-10" y1="${T}" y2="${T + h}" stroke="#e8ecf1" stroke-width="1"/><circle id="pc" cx="-10" cy="-10" r="4" fill="#4c8df6" stroke="#fff" stroke-width="2"/>`;
+  g += `<text id="pt" x="${W - R}" y="${T + 9}" text-anchor="end" fill="#e8ecf1" font-size="10.5"></text>`;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = g;
+  last.prof = { X, Y, L, w, D };
+}
+function profileHover(ev) {
+  if (!last || !last.prof) return;
+  const { X, Y, L, w, D } = last.prof, r = $('prof').getBoundingClientRect();
+  const vb = $('prof').viewBox.baseVal, sx = (ev.clientX - r.left) * vb.width / r.width;
+  const d = Math.max(0, Math.min(1, (sx - L) / w)) * D;
+  const p = last.pts.find(q => q.d >= d) || last.pts[last.pts.length - 1];
+  $('pl').setAttribute('x1', X(p.d)); $('pl').setAttribute('x2', X(p.d));
+  $('pc').setAttribute('cx', X(p.d)); $('pc').setAttribute('cy', Y(p.z));
+  $('pt').textContent = fmt1.format(p.d / 1000) + ' χλμ. · ' + fmt0.format(p.z) + ' μ.';
+  map.getSource('hover').setData({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lonOf(p.x), latOf(p.y)] } });
+}
+function profileLeave() {
+  if (!last || !last.prof) return;
+  for (const id of ['pl']) { $(id).setAttribute('x1', -10); $(id).setAttribute('x2', -10); }
+  $('pc').setAttribute('cx', -10); $('pt').textContent = '';
+  if (map.getSource('hover')) map.getSource('hover').setData({ type: 'FeatureCollection', features: [] });
+}
+
+// ---------- exports
+function gpx() {
+  const pts = last.pts.map(p => `<trkpt lat="${latOf(p.y).toFixed(6)}" lon="${lonOf(p.x).toFixed(6)}"><ele>${p.z.toFixed(1)}</ele></trkpt>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Δεν είναι ατύχημα" xmlns="http://www.topografix.com/GPX/1/1">\n<metadata><name>Ασφαλής διαδρομή με ποδήλατο</name></metadata>\n<trk><name>Ασφαλής διαδρομή</name><trkseg>\n${pts}\n</trkseg></trk>\n</gpx>\n`;
+}
+function googleUrl() {
+  const P2 = last.pts, D = P2[P2.length - 1].d, n = 8, wps = [];
+  for (let i = 1; i <= n; i++) { const d = D * i / (n + 1); const p = P2.find(q => q.d >= d); if (p) wps.push(latOf(p.y).toFixed(5) + ',' + lonOf(p.x).toFixed(5)); }
+  const a = P2[0], b = P2[P2.length - 1];
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=bicycling&origin=' + latOf(a.y).toFixed(5) + ',' + lonOf(a.x).toFixed(5) +
+    '&destination=' + latOf(b.y).toFixed(5) + ',' + lonOf(b.x).toFixed(5) + '&waypoints=' + encodeURIComponent(wps.join('|'));
+}
+
+// ---------- state in the address (bookmarkable) and on this device
+function saveState() {
+  const h = new URLSearchParams();
+  if (P.a) h.set('a', P.a.lat + ',' + P.a.lng);
+  if (P.b) h.set('b', P.b.lat + ',' + P.b.lng);
+  h.set('s', opts.safety); h.set('h', opts.hills);
+  history.replaceState(null, '', '#' + h.toString());
+  store.set('riskride.hash', h.toString());
+}
+function readState() {
+  const h = new URLSearchParams(location.hash.slice(1) || store.get('riskride.hash') || '');
+  const pt = (v) => { if (!v) return null; const [lat, lng] = v.split(',').map(Number); return isFinite(lat) && isFinite(lng) ? { lat, lng } : null; };
+  if (h.get('s')) opts.safety = +h.get('s');
+  if (h.get('h')) opts.hills = +h.get('h');
+  return { a: pt(h.get('a')), b: pt(h.get('b')) };
+}
+
+// ---------- wiring
+document.querySelectorAll('.seg').forEach(seg => {
+  const key = seg.dataset.opt;
+  const sync = () => seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v === opts[key]));
+  seg.querySelectorAll('button').forEach(b => b.onclick = () => { opts[key] = +b.dataset.v; store.set('riskride.' + key, opts[key]); sync(); compute(); });
+  seg._sync = sync;
+});
+$('bSwap').onclick = () => { const a = P.a, b = P.b; setPoint('a', b, false); setPoint('b', a); };
+$('bClear').onclick = () => { setPoint('a', null, false); setPoint('b', null); };
+$('bLoc').onclick = () => {
+  if (!navigator.geolocation) return msg('Η συσκευή δεν δίνει θέση.');
+  msg('Εντοπισμός θέσης…');
+  navigator.geolocation.getCurrentPosition(
+    (p) => { setPoint('a', { lng: p.coords.longitude, lat: p.coords.latitude }); if (!P.b) msg('Πατήστε για προορισμό.'); map.easeTo({ center: [p.coords.longitude, p.coords.latitude], zoom: Math.max(map.getZoom(), 14) }); },
+    () => msg('Δεν δόθηκε πρόσβαση στη θέση.'), { enableHighAccuracy: true, timeout: 10000 });
+};
+$('bGpx').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([gpx()], { type: 'application/gpx+xml' }));
+  a.download = 'asfalis-diadromi.gpx'; document.body.appendChild(a); a.click(); a.remove(); };
+$('bGoogle').onclick = () => window.open(googleUrl(), '_blank', 'noopener');
+$('bShare').onclick = async () => { try { await navigator.clipboard.writeText(location.href); msg('Ο σύνδεσμος αντιγράφηκε. Ανοίγει την ίδια διαδρομή.'); } catch (e) { msg(location.href); } };
+$('cNet').onchange = (e) => map.setLayoutProperty('net', 'visibility', e.target.checked ? 'visible' : 'none');
+$('prof').addEventListener('pointermove', profileHover);
+$('prof').addEventListener('pointerdown', profileHover);
+$('prof').addEventListener('pointerleave', profileLeave);
+window.addEventListener('resize', () => { if (last) drawProfile(); });
+map.on('click', (e) => { if (e.defaultPrevented) return; if (!P.a) setPoint('a', e.lngLat); else setPoint('b', e.lngLat); });
+
+(async () => {
+  const st = readState();
+  document.querySelectorAll('.seg').forEach(s => s._sync());
+  try {
+    await Promise.all([loadGraph(), new Promise(r => map.on('load', r))]);
+    addLayers();
+    msg(st.a ? '' : 'Έτοιμο. Πατήστε στον χάρτη για αφετηρία.');
+    if (st.a) setPoint('a', st.a, false);
+    if (st.b) setPoint('b', st.b, false);
+    compute();
+    if (st.a && st.b) map.fitBounds([[Math.min(st.a.lng, st.b.lng), Math.min(st.a.lat, st.b.lat)], [Math.max(st.a.lng, st.b.lng), Math.max(st.a.lat, st.b.lat)]],
+      { padding: window.matchMedia('(max-width:700px)').matches ? { top: 50, bottom: window.innerHeight * 0.6, left: 40, right: 60 } : { top: 60, bottom: 60, left: 380, right: 60 }, duration: 0 });
+  } catch (err) { msg('Σφάλμα φόρτωσης: ' + err.message); }
+})();
+</script>
+</body>
+</html>

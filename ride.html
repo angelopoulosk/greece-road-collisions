@@ -36,8 +36,8 @@
   .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
   .sum b{display:block;font-size:18px;font-variant-numeric:tabular-nums}
   .sum span{font-size:11px;color:var(--muted)}
-  .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:10px;background:#2a313c}
-  .bar i{display:block;height:100%}
+  .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:10px;background:var(--risk)}
+  .bar i{background:var(--safe)}
   .barl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
   #prof{display:block;width:100%;height:110px;margin-top:2px;touch-action:none}
   .msg{font-size:12.5px;color:var(--accent);margin-top:10px;min-height:1em}
@@ -65,7 +65,7 @@
 <div id="map"></div>
 <aside class="panel">
   <h1>Διαδρομή με ποδήλατο από <em>ασφαλέστερους δρόμους</em></h1>
-  <p class="hint">Πατήστε στον χάρτη για αφετηρία και μετά για προορισμό. Σύρετε τα σημεία για αλλαγή. Η διαδρομή αποφεύγει δρόμους και διασταυρώσεις ανάλογα με τις συγκρούσεις γύρω τους, τηρεί τους μονόδρομους και λογαριάζει τις ανηφόρες.</p>
+  <p class="hint">Πατήστε στον χάρτη για αφετηρία και μετά για προορισμό. Σύρετε τα σημεία για αλλαγή. Η διαδρομή προτιμά δρόμους χωρίς καταγεγραμμένες συγκρούσεις, τηρεί τους μονόδρομους και αποφεύγει τις ανηφόρες.</p>
 
   <div class="pts">
     <div class="pin a">Α</div><span id="ptA">Πατήστε στον χάρτη…</span>
@@ -94,7 +94,7 @@
       <div><b id="sTime">–</b><span>λεπτά (περίπου)</span></div>
       <div><b id="sUp">–</b><span>μ. ανάβαση / <span id="sDn"></span> κατάβαση</span></div>
     </div>
-    <div class="bar" id="tbar"></div>
+    <div class="bar"><i id="bSafe"></i></div>
     <div class="barl"><span id="lSafe"></span><span id="lRisk"></span></div>
     <div class="label" style="margin-top:12px">Υψομετρικό προφίλ</div>
     <svg id="prof" viewBox="0 0 300 110" aria-label="Υψομετρικό προφίλ διαδρομής"></svg>
@@ -105,12 +105,11 @@
     </div>
   </div>
 
-  <div class="label">Κίνδυνος (συγκρούσεις στη γύρω περιοχή)</div>
-  <div class="lg"><span><i style="border-color:#16a34a"></i>Πολύ χαμηλός</span><span><i style="border-color:#eab308"></i>Χαμηλός</span><span><i style="border-color:#f97316"></i>Μέτριος</span><span><i style="border-color:#dc2626"></i>Υψηλός</span><span><i style="border-color:#7f1d1d"></i>Πολύ υψηλός</span>
+  <div class="lg"><span><i style="border-color:var(--safe)"></i>Δρόμος χωρίς σύγκρουση</span><span><i style="border-color:var(--risk)"></i>Με συγκρούσεις</span>
     <label style="cursor:pointer"><input type="checkbox" id="cNet" checked style="vertical-align:middle;accent-color:var(--accent)"> Εμφάνιση δικτύου</label></div>
 
   <p class="foot">
-    Κίνδυνος = οι συγκρούσεις 10/2020–05/2025 γύρω από κάθε δρόμο, με βάρος που μειώνεται με την απόσταση (περίπου 100 μ.). Έτσι ένας δρόμος που οδηγεί σε πολυσύχναστη διασταύρωση ή περνά δίπλα σε επικίνδυνη λεωφόρο δεν φαίνεται ασφαλής. Πράσινο σημαίνει ελάχιστες συγκρούσεις τριγύρω, όχι εγγύηση ασφάλειας.
+    «Χωρίς σύγκρουση» = καμία καταγεγραμμένη σύγκρουση σε 20 μ. (10/2020–05/2025), όχι εγγύηση ασφάλειας· ήσυχοι δρόμοι με λίγη κίνηση έχουν λιγότερες συγκρούσεις και επειδή περνούν λιγότεροι.
     Δεν περιλαμβάνονται ποδηλατόδρομοι, πεζόδρομοι, αυτοκινητόδρομοι και σήραγγες. Καλύπτει το λεκανοπέδιο της Αθήνας.
     Δρόμοι © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · υψόμετρα AWS Terrain Tiles ·
     συγκρούσεις <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">accidents.maps.gov.gr</a>.
@@ -139,15 +138,6 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-ri
 const geo = new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true, showAccuracyCircle: true });
 map.addControl(geo, 'top-right');
 
-// ---------- risk classes from exposure: collisions in the surrounding ~100 m (distance-weighted), Oct 2020 – May 2025
-// A street next to a busy junction or avenue carries that risk; only genuinely quiet streets are green.
-const TIER_COLOR = ['#16a34a', '#eab308', '#f97316', '#dc2626', '#7f1d1d'];
-const TIER_NAME = ['Πολύ χαμηλός', 'Χαμηλός', 'Μέτριος', 'Υψηλός', 'Πολύ υψηλός'];
-const TIER_EDGE = [0.5, 1.5, 3.5, 8];
-const tierOf = (x) => (x < TIER_EDGE[0] ? 0 : x < TIER_EDGE[1] ? 1 : x < TIER_EDGE[2] ? 2 : x < TIER_EDGE[3] ? 3 : 4);
-const edgeTier = (e) => tierOf(G.E.rk[e] / 100);
-const nodeTier = (n) => tierOf(G.NR[n] / 100);
-
 // ---------- graph
 let G = null;
 // The graph comes from, in order: a published data/bike-graph.json, a copy saved on this device,
@@ -158,7 +148,7 @@ const IDB = {
   async get(k) { const db = await this.open(); return new Promise((ok, no) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }); },
   async set(k, v) { const db = await this.open(); return new Promise((ok, no) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = ok; t.onerror = () => no(t.error); }); }
 };
-const MAX_AGE_DAYS = 60, GRAPH_V = 5;   // GRAPH_V must match GRAPH_VERSION in tools/bike-graph-lib.js
+const MAX_AGE_DAYS = 60, GRAPH_V = 6;   // GRAPH_V must match GRAPH_VERSION in tools/bike-graph-lib.js
 async function getGraphData() {
   // the version in the address makes browsers fetch the builder again whenever it changes
   const { buildGraph, GRAPH_VERSION } = await import('./tools/bike-graph-lib.js?v=' + GRAPH_V);
@@ -177,7 +167,7 @@ async function getGraphData() {
 async function loadGraph() {
   const d = await getGraphData();
   const nN = d.n.x.length, nE = d.e.a.length;
-  const NX = new Float64Array(nN), NY = new Float64Array(nN), NZ = new Float32Array(nN), NC = Int32Array.from(d.n.c), NR = Int32Array.from(d.n.r);
+  const NX = new Float64Array(nN), NY = new Float64Array(nN), NZ = new Float32Array(nN);
   for (let i = 0, x = 0, y = 0; i < nN; i++) { x += d.n.x[i]; y += d.n.y[i]; NX[i] = x; NY[i] = y; NZ[i] = d.n.e[i] / 10; }
   const E = d.e;
   // directed arcs: every edge a->b, and b->a unless one-way
@@ -202,7 +192,7 @@ async function loadGraph() {
     const k = Math.floor(NX[i] / CELL) * 1e6 + Math.floor(NY[i] / CELL);
     let arr = cells.get(k); if (!arr) cells.set(k, arr = []); arr.push(i);
   }
-  G = { d, E, nN, nE, NX, NY, NZ, NC, NR, off, head, aEdge, aRev, comp, cells, CELL, cost: new Float64Array(nA), costKey: '' };
+  G = { d, E, nN, nE, NX, NY, NZ, off, head, aEdge, aRev, comp, cells, CELL, cost: new Float64Array(nA), costKey: '' };
 }
 
 // shape of an edge in its stored direction: [[X, Y, z], ...]
@@ -217,23 +207,20 @@ function shape(e) {
 }
 
 // ---------- costs (per directed arc), from the chosen options
-// A street costs its length, multiplied up by its exposure (riding past busy junctions and avenues), plus a
-// penalty for each junction crossed in proportion to its exposure, plus climbing in the direction of travel.
 const opts = { safety: +(store.get('ride.safety') || 2), hills: +(store.get('ride.hills') || 1) };
 function prepareCosts() {
   const key = opts.safety + '/' + opts.hills;
   if (G.costKey === key) return;
-  const { E, cost, aEdge, aRev, head, NR } = G;
-  const S = [0, 0.35, 1][opts.safety];
-  const A = 0.6, B = 25;                    // per unit of exposure: x0.6 street length; 25 m per junction crossed
-  const CLASS = [[0, 0, 0, 0], [0.4, 0.25, 0.1, 0], [0.8, 0.5, 0.2, 0]][opts.safety];   // busier road types
-  const HU = opts.hills === 2 ? 30 : 10, HS = opts.hills === 2 ? 80 : 25;                  // per metre climbed / steep metre
-  const et = new Uint8Array(G.nE); for (let e = 0; e < G.nE; e++) et[e] = edgeTier(e);
-  G.et = et;
+  const { E, cost, aEdge, aRev } = G;
+  const S = [0, 1, 3][opts.safety];                       // weight of recorded collisions
+  const CLASS = [[0, 0, 0, 0], [0.5, 0.3, 0.12, 0], [1.0, 0.6, 0.25, 0]][opts.safety];   // busier road classes
+  const HU = opts.hills === 2 ? 30 : 10, HS = opts.hills === 2 ? 80 : 25;                    // per metre climbed / steep metre
   for (let k = 0; k < cost.length; k++) {
-    const e = aEdge[k], len = E.len[e];
+    const e = aEdge[k], len = E.len[e], c = E.c20[e];
+    let f = 1 + CLASS[E.cls[e]];
+    if (c) f += S * (1 + 100 * c / Math.max(len, 40));     // collisions per 100 m
     const up = (aRev[k] ? E.dn[e] : E.up[e]) / 10, steep = (aRev[k] ? E.sd[e] : E.su[e]) / 10;
-    cost[k] = len * (1 + CLASS[E.cls[e]] + S * A * E.rk[e] / 100) + S * B * NR[head[k]] / 100 + HU * up + HS * steep;
+    cost[k] = len * f + HU * up + HS * steep;
   }
   G.costKey = key;
 }
@@ -285,35 +272,21 @@ function snap(lngLat) {
 // ---------- map layers
 function netGeoJSON() {
   const feats = [];
-  for (let e = 0; e < G.nE; e++) feats.push({ type: 'Feature', properties: { t: edgeTier(e) },
+  for (let e = 0; e < G.nE; e++) feats.push({ type: 'Feature', properties: { c: G.E.c20[e] ? 1 : 0 },
     geometry: { type: 'LineString', coordinates: shape(e).map(([x, y]) => [lonOf(x), latOf(y)]) } });
   return { type: 'FeatureCollection', features: feats };
 }
 function addLayers() {
   const W = (a, b) => ['interpolate', ['linear'], ['zoom'], 11, a, 17, b];
   map.addSource('net', { type: 'geojson', data: netGeoJSON() });
-  const TC = ['match', ['get', 't'], 0, TIER_COLOR[0], 1, TIER_COLOR[1], 2, TIER_COLOR[2], 3, TIER_COLOR[3], TIER_COLOR[4]];
   map.addLayer({ id: 'net', type: 'line', source: 'net', minzoom: 11,
-    paint: { 'line-color': TC, 'line-width': W(0.5, 3),
-      'line-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.3, 15, 0.65] } });
-  const jf = [];
-  for (let i = 0; i < G.nN; i++) if (G.NR[i] >= TIER_EDGE[2] * 100) jf.push({ type: 'Feature', properties: { t: nodeTier(i), n: G.NC[i] },
-    geometry: { type: 'Point', coordinates: [lonOf(G.NX[i]), latOf(G.NY[i])] } });
-  map.addSource('junc', { type: 'geojson', data: { type: 'FeatureCollection', features: jf } });
-  map.addLayer({ id: 'junc', type: 'circle', source: 'junc', minzoom: 13.5, filter: ['>=', ['get', 't'], 3],
-    paint: { 'circle-color': TC, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 13.5, 2.5, 17, 7],
-      'circle-stroke-width': 1, 'circle-stroke-color': '#fff', 'circle-opacity': 0.85 } });
+    paint: { 'line-color': ['case', ['==', ['get', 'c'], 1], '#e8a39a', '#57c27e'], 'line-width': W(0.5, 3),
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.35, 15, 0.7] } });
   map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'route-case', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' },
     paint: { 'line-color': '#ffffff', 'line-width': W(6, 12) } });
   map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': ['match', ['get', 't'], 0, TIER_COLOR[0], 1, TIER_COLOR[1], 2, TIER_COLOR[2], 3, TIER_COLOR[3], TIER_COLOR[4]], 'line-width': W(3.5, 7) } });
-  map.addSource('rjunc', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  map.addLayer({ id: 'rjunc', type: 'circle', source: 'rjunc',
-    paint: { 'circle-color': ['match', ['get', 't'], 1, TIER_COLOR[1], 2, TIER_COLOR[2], 3, TIER_COLOR[3], TIER_COLOR[4]],
-      'circle-radius': W(4, 8), 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } });
-  map.on('click', 'rjunc', (e) => { e.preventDefault(); const p = e.features[0].properties;
-    new maplibregl.Popup({ closeButton: false }).setLngLat(e.lngLat).setHTML('<b>Διασταύρωση ' + TIER_NAME[p.t].toLowerCase() + 'ς κινδύνου</b><br>' + p.n + ' ' + (p.n === 1 ? 'σύγκρουση' : 'συγκρούσεις') + ' πάνω της, 10/2020–05/2025').addTo(map); });
+    paint: { 'line-color': ['case', ['==', ['get', 'c'], 1], '#dc2626', '#16a34a'], 'line-width': W(3.5, 7) } });
   map.addSource('hover', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'hover', type: 'circle', source: 'hover', paint: { 'circle-radius': 6, 'circle-color': '#ffd23f', 'circle-stroke-width': 2, 'circle-stroke-color': '#161b22' } });
 }
@@ -345,40 +318,35 @@ function compute() {
   const s = snap(P.a), t = snap(P.b);
   if (s < 0 || t < 0) { clearRoute(); msg('Το σημείο είναι εκτός της περιοχής που καλύπτεται (λεκανοπέδιο Αθήνας) ή μακριά από δρόμο.'); return; }
   if (s === t) { clearRoute(); msg('Αφετηρία και προορισμός είναι στο ίδιο σημείο.'); return; }
-  const t0node = s, arcs = route(s, t);
+  const arcs = route(s, t);
   if (!arcs) { clearRoute(); msg('Δεν βρέθηκε διαδρομή που να τηρεί τους μονόδρομους. Δοκιμάστε λίγο διαφορετικά σημεία.'); return; }
   // stitch the shape, with distance and height along it
-  prepareCosts();
-  const pts = [], runs = [], km = [0, 0, 0, 0, 0], jun = [];
-  let dist = 0, up = 0, dn = 0;
+  const pts = [], runs = []; let dist = 0, up = 0, dn = 0, safe = 0;
   for (const k of arcs) {
     const e = G.aEdge[k], rev = G.aRev[k], sh = shape(e); if (rev) sh.reverse();
-    const t = G.et[e], len = G.E.len[e], h = G.head[k];
+    const c = G.E.c20[e] ? 1 : 0, len = G.E.len[e];
     up += (rev ? G.E.dn[e] : G.E.up[e]) / 10; dn += (rev ? G.E.up[e] : G.E.dn[e]) / 10;
-    km[t] += len;
-    if (nodeTier(h) >= 3 && h !== t0node) jun.push(h);
+    if (!c) safe += len;
     const coords = [];
     sh.forEach(([x, y, z], i) => {
       if (pts.length && i === 0) { coords.push([lonOf(x), latOf(y)]); return; }
       if (pts.length) dist += Math.hypot(x - pts[pts.length - 1].x, y - pts[pts.length - 1].y) * MPU_D;
-      pts.push({ x, y, z, d: dist, t }); coords.push([lonOf(x), latOf(y)]);
+      pts.push({ x, y, z, d: dist, c }); coords.push([lonOf(x), latOf(y)]);
     });
-    if (runs.length && runs[runs.length - 1].t === t) runs[runs.length - 1].coords.push(...coords.slice(1));
-    else runs.push({ t, coords });
+    if (runs.length && runs[runs.length - 1].c === c) runs[runs.length - 1].coords.push(...coords.slice(1));
+    else runs.push({ c, coords });
   }
-  const total = km.reduce((a, b) => a + b, 0);
-  last = { pts, total, up, dn, km, jun };
-  map.getSource('route').setData({ type: 'FeatureCollection', features: runs.map(r => ({ type: 'Feature', properties: { t: r.t }, geometry: { type: 'LineString', coordinates: r.coords } })) });
-  map.getSource('rjunc').setData({ type: 'FeatureCollection', features: jun.map(n => ({ type: 'Feature', properties: { t: nodeTier(n), n: G.NC[n] },
-    geometry: { type: 'Point', coordinates: [lonOf(G.NX[n]), latOf(G.NY[n])] } })) });
+  const total = arcs.reduce((a, k) => a + G.E.len[G.aEdge[k]], 0);
+  last = { pts, total, up, dn, safe };
+  map.getSource('route').setData({ type: 'FeatureCollection', features: runs.map(r => ({ type: 'Feature', properties: { c: r.c }, geometry: { type: 'LineString', coordinates: r.coords } })) });
   const mins = total / 4.4 / 60 + up * 4 / 60;               // ~16 km/h on the flat, + ~4 s per metre climbed
   $('sDist').textContent = fmt1.format(total / 1000);
   $('sTime').textContent = fmt0.format(Math.max(1, mins));
   $('sUp').textContent = fmt0.format(up); $('sDn').textContent = fmt0.format(dn);
-  $('tbar').innerHTML = km.map((m, t) => m ? `<i style="width:${(100 * m / total).toFixed(2)}%;background:${TIER_COLOR[t]}" title="${TIER_NAME[t]}: ${fmt1.format(m / 1000)} χλμ."></i>` : '').join('');
-  $('lSafe').textContent = Math.round(100 * (km[0] + km[1]) / total) + '% χαμηλός κίνδυνος';
-  const bad = km[3] + km[4];
-  $('lRisk').textContent = fmt1.format(bad / 1000) + ' χλμ. υψηλός · ' + jun.length + ' επικίνδυνες διασταυρώσεις';
+  const pct = Math.round(100 * safe / total);
+  $('bSafe').style.width = pct + '%';
+  $('lSafe').textContent = pct + '% σε δρόμους χωρίς σύγκρουση';
+  $('lRisk').textContent = fmt1.format((total - safe) / 1000) + ' χλμ. με συγκρούσεις';
   drawProfile();
   $('result').hidden = false;
   msg('');
@@ -386,7 +354,6 @@ function compute() {
 function clearRoute() {
   last = null; $('result').hidden = true;
   if (map.getSource('route')) map.getSource('route').setData({ type: 'FeatureCollection', features: [] });
-  if (map.getSource('rjunc')) map.getSource('rjunc').setData({ type: 'FeatureCollection', features: [] });
 }
 
 // elevation chart in the style of Google / Apple Maps: filled area, height and distance axes, cursor on hover
@@ -484,7 +451,7 @@ $('prof').addEventListener('pointermove', profileHover);
 $('prof').addEventListener('pointerdown', profileHover);
 $('prof').addEventListener('pointerleave', profileLeave);
 window.addEventListener('resize', () => { if (last) drawProfile(); });
-map.on('click', (e) => { if (e.defaultPrevented) return; if (!P.a) setPoint('a', e.lngLat); else setPoint('b', e.lngLat); });
+map.on('click', (e) => { if (!P.a) setPoint('a', e.lngLat); else setPoint('b', e.lngLat); });
 
 (async () => {
   const st = readState();

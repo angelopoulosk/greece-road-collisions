@@ -39,8 +39,10 @@ dr.text((x, T + 102), 'ατύχημα', font=title, fill=(255, 210, 63))
 for i, line in enumerate(['Τροχαίες συγκρούσεις και', 'διακομιδές στην Ελλάδα,', '2020–2025']):
     dr.text((x, T + 196 + 34 * i), line, font=sub, fill=(185, 196, 210))
 dr.line((x, T + 318, R - 36, T + 318), fill=(42, 49, 60), width=2)
-dr.text((x, T + 336), '84.331 συγκρούσεις', font=stat, fill=(255, 107, 61))
-dr.text((x, T + 370), '119.897 διακομιδές', font=stat, fill=(76, 194, 255))
+nt = len(json.load(open(f'{repo}/data/transports.json'))['t'])
+gr = lambda n: f'{n:,}'.replace(',', '.')
+dr.text((x, T + 336), gr(len(d['t'])) + ' συγκρούσεις', font=stat, fill=(255, 107, 61))
+dr.text((x, T + 370), gr(nt) + ' διακομιδές', font=stat, fill=(76, 194, 255))
 dr.text((x, B - 46), 'Πηγή: accidents.maps.gov.gr', font=small, fill=(120, 130, 142))
 img.save(f'{repo}/og.png', optimize=True)
 

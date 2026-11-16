@@ -431,7 +431,8 @@ function popup(kind, i, lngLat) {
   const d = kind === 'c' ? DATA.collisions : DATA.transports;
   const when = dfmt.format(new Date(d.t[i] * 60000));
   const html = '<div class="pop"><b>' + (kind === 'c' ? causeLabel(d, d.c[i]) : 'Διακομιδή') + '</b><br>' +
-    when + '<br><small>' + d.places[d.o[i]] + '</small></div>';
+    when + '<br><small>' + d.places[d.o[i]] +
+    (d.r && d.r[i] > 1 ? ' · ' + d.r[i] + ' εγγραφές στην πηγή' : '') + '</small></div>';
   new maplibregl.Popup({ maxWidth: '280px' }).setLngLat(lngLat).setHTML(html).addTo(map);
 }
 

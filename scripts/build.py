@@ -3,6 +3,12 @@
 
 Input : raw JSON  {"sigrousi": [[id, lon, lat, description, timestamp, ota, color], ...],
                    "diakomidi": [...]}   (already de-duplicated by record id)
+
+Duplicates: the source often lists one event several times under different ids (apparently one
+record per vehicle or person involved). Records with the same coordinates, cause, date and minute
+are treated as one event when every other field also matches; if any other field differs (e.g. the
+municipality) they stay separate. Each kept row records how many source records it stands for and
+their ids. data/raw.json keeps every source record unchanged.
 Output: data/collisions.csv, data/transports.csv   full records
         data/collisions.xlsx, data/transports.xlsx  same, as Excel
         data/collisions.json, data/transports.json  compact columns for the map
@@ -15,7 +21,8 @@ from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 
 ATH = ZoneInfo("Europe/Athens")
-HEAD = ["id", "datetime_athens", "timestamp_utc", "longitude", "latitude", "municipality", "description", "fatal_five", "color"]
+HEAD = ["id", "datetime_athens", "timestamp_utc", "longitude", "latitude", "municipality", "description", "fatal_five",
+        "color", "source_records", "source_ids"]
 
 # Recorded causes that fall under the "Fatal Five" (speeding, drink/drug driving, careless driving,
 # distracted driving, no seatbelt). The source has no seatbelt cause, so four categories appear.
@@ -41,43 +48,51 @@ def main(raw_path, repo="."):
     out = os.path.join(repo, "data")
     os.makedirs(out, exist_ok=True)
     for key, name in NAMES.items():
-        seen, rows = set(), []
+        seen, events = set(), {}
         for rid, lon, lat, desc, ts, ota, color in raw[key]:
             if rid in seen:
                 continue
             seen.add(rid)
+            ota, desc, color = (ota or "").strip(), (desc or "").strip(), color or ""
+            # same spot + cause + minute, and nothing else that tells them apart -> one event
+            events.setdefault((lon, lat, desc, ts, ota, color), []).append(rid)
+        rows = []
+        for (lon, lat, desc, ts, ota, color), ids in events.items():
+            ids.sort()
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(timezone.utc)
-            rows.append((rid, dt, lon, lat, (ota or "").strip(), (desc or "").strip(), color or ""))
+            rows.append((ids[0], dt, lon, lat, ota, desc, color, ids))
+        print(name, "source records", len(seen), "-> events", len(rows))
         rows.sort(key=lambda r: (r[1], r[0]))
 
         # CSV
         with open(os.path.join(out, name + ".csv"), "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
             w.writerow(HEAD)
-            for rid, dt, lon, lat, ota, desc, color in rows:
+            for rid, dt, lon, lat, ota, desc, color, ids in rows:
                 w.writerow([rid, dt.astimezone(ATH).strftime("%Y-%m-%d %H:%M"),
                             dt.strftime("%Y-%m-%dT%H:%M:%SZ"), lon, lat, ota, desc,
-                            FATAL_FIVE.get(desc, ""), color])
+                            FATAL_FIVE.get(desc, ""), color, len(ids), ";".join(ids)])
 
         # Excel
         wb = Workbook(write_only=True)
         ws = wb.create_sheet(name)
         ws.append(HEAD)
-        for rid, dt, lon, lat, ota, desc, color in rows:
+        for rid, dt, lon, lat, ota, desc, color, ids in rows:
             ws.append([rid, dt.astimezone(ATH).replace(tzinfo=None),
                        dt.strftime("%Y-%m-%dT%H:%M:%SZ"), lon, lat, ota, desc,
-                       FATAL_FIVE.get(desc, ""), color])
+                       FATAL_FIVE.get(desc, ""), color, len(ids), ";".join(ids)])
         wb.save(os.path.join(out, name + ".xlsx"))
 
         # compact JSON for the map
         causes, places = {}, {}
-        col = {"x": [], "y": [], "t": [], "c": [], "o": []}
-        for rid, dt, lon, lat, ota, desc, color in rows:
+        col = {"x": [], "y": [], "t": [], "c": [], "o": [], "r": []}
+        for rid, dt, lon, lat, ota, desc, color, ids in rows:
             col["x"].append(round(lon * 1e5))
             col["y"].append(round(lat * 1e5))
             col["t"].append(int(dt.timestamp() // 60))
             col["c"].append(causes.setdefault(desc, len(causes)))
             col["o"].append(places.setdefault(ota, len(places)))
+            col["r"].append(len(ids))
         col["causes"], col["places"] = list(causes), list(places)
         col["fatal"] = [i for i, c in enumerate(causes) if c in FATAL_FIVE]
         with open(os.path.join(out, name + ".json"), "w", encoding="utf-8") as f:

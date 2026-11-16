@@ -54,11 +54,14 @@ def main(raw_path, repo="."):
                 continue
             seen.add(rid)
             ota, desc, color = (ota or "").strip(), (desc or "").strip(), color or ""
-            # same spot + cause + minute, and nothing else that tells them apart -> one event
-            events.setdefault((lon, lat, desc, ts, ota, color), []).append(rid)
+            # Collisions: same spot + cause + minute, and nothing else that tells them apart -> one event.
+            # Transports are not merged: each source record is taken to be one person transported.
+            k = (lon, lat, desc, ts, ota, color) if key == "sigrousi" else (rid,)
+            events.setdefault(k, []).append((rid, lon, lat, desc, ts, ota, color))
         rows = []
-        for (lon, lat, desc, ts, ota, color), ids in events.items():
-            ids.sort()
+        for recs in events.values():
+            rid0, lon, lat, desc, ts, ota, color = recs[0]
+            ids = sorted(r[0] for r in recs)
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(timezone.utc)
             rows.append((ids[0], dt, lon, lat, ota, desc, color, ids))
         print(name, "source records", len(seen), "-> events", len(rows))

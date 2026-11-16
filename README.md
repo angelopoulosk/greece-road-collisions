@@ -13,7 +13,7 @@ interactive map.
 | File | Records | Period |
 |---|---|---|
 | `data/collisions.csv` / `.xlsx` | 51,047 (from 84,331 source records) | 01/10/2020 – 19/05/2025 |
-| `data/transports.csv` / `.xlsx` | 60,855 (from 119,897 source records) | 01/10/2020 – 31/12/2024 |
+| `data/transports.csv` / `.xlsx` | 119,897 (every source record, one per person transported) | 01/10/2020 – 31/12/2024 |
 
 Columns: `id`, `datetime_athens`, `timestamp_utc`, `longitude`, `latitude`, `municipality`,
 `description` (recorded cause, collisions only), `fatal_five`, `color` (marker colour used by the source map),
@@ -21,11 +21,14 @@ Columns: `id`, `datetime_athens`, `timestamp_utc`, `longitude`, `latitude`, `mun
 
 ### Duplicate records
 
-The source often lists the same event several times under different ids, apparently one record per
-vehicle or person involved. Records with the same coordinates, cause, date and minute are treated as
-one event, unless another field tells them apart: in 17 transport cases the municipality differs, so
-those are kept separate. Each row keeps the number and ids of the source records it stands for, and
-`data/raw.json` still holds every source record unchanged.
+The source often lists the same collision several times under different ids, apparently one record
+per vehicle or person involved. Collision records with the same coordinates, cause, date and minute
+are treated as one collision. Each row keeps the number and ids of the source records it stands for,
+and `data/raw.json` still holds every source record unchanged.
+
+Transports are not merged. Several transports at the same spot and minute are taken to be different
+people carried from the same collision, so every source record counts as one person transported
+(`source_records` is always 1).
 
 ### Fatal Five 💀
 

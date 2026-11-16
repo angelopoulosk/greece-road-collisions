@@ -8,6 +8,12 @@ interactive map.
 
 **Map:** https://angelopoulosk.github.io/greece-road-collisions/
 
+## Map features
+
+- Collisions are shown as a heatmap, then count bubbles, then dots coloured by cause category; tapping a dot shows the collision(s).
+- Base map switch: map, satellite or hybrid (imagery © Esri and its providers).
+- **Εξαγωγή περιοχής**: drag a rectangle to get a report for that area with the current filters, and download the map image (PNG), the records (CSV) and a PowerPoint presentation.
+
 ## Data
 
 | File | Records | Period |

@@ -84,6 +84,41 @@
   .top button::before{content:counter(t) '.';color:var(--muted);min-width:18px}
   .top button:hover{background:#0e1116}
   .top .n{margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted)}
+  .txt-ctrl button{width:auto;min-width:100%;height:auto;padding:7px 10px;font:inherit;font-size:12px;text-align:left;white-space:nowrap;display:block;color:#222}
+  .txt-ctrl button.on{font-weight:700;background:#e6e8eb}
+  .sel-ov{position:fixed;inset:0;z-index:20;cursor:crosshair;touch-action:none;background:rgba(14,17,22,.12)}
+  .sel-hint{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:#161b22;color:var(--text);padding:8px 12px;border-radius:999px;font-size:13px;white-space:nowrap;cursor:default}
+  .sel-hint button{margin-left:8px;background:none;border:1px solid var(--line);border-radius:999px;color:var(--text);font:inherit;font-size:12px;padding:3px 10px;cursor:pointer}
+  .sel-box{position:absolute;border:2px dashed #8a0303;background:rgba(138,3,3,.12);pointer-events:none}
+  .report{position:fixed;inset:0;z-index:30;background:rgba(14,17,22,.55);display:flex;align-items:flex-start;justify-content:flex-end;padding:12px;overflow:auto}
+  .rep-card{position:relative;width:420px;max-width:100%;background:#161b22;border:1px solid var(--line);border-radius:12px;padding:18px}
+  .rep-x{position:absolute;top:8px;right:10px;background:none;border:0;color:var(--muted);font-size:24px;cursor:pointer}
+  .rep-card h2{margin:0 0 4px;font-size:20px}
+  .rep-card h3{margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:400}
+  .rep-sub{margin:0 0 10px;font-size:12px;color:var(--muted)}
+  .rep-card img{display:block;width:100%;border-radius:8px}
+  .rep-wait{padding:40px 0;text-align:center;font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:8px}
+  .rep-nums{display:flex;gap:14px;margin-top:12px}
+  .rep-nums div{flex:1}
+  .rep-nums b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+  .rep-nums span{font-size:11px;color:var(--muted)}
+  .rep-bars div{display:flex;align-items:center;gap:8px;font-size:12px;margin:3px 0}
+  .rep-bars span{width:130px;flex:none}
+  .rep-bars i{height:10px;border-radius:2px;min-width:2px}
+  .rep-bars em,.rep-list em,.rep-years em{font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums}
+  .rep-years{display:flex;align-items:flex-end;gap:6px;height:90px}
+  .rep-years div{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;font-size:11px}
+  .rep-years i{width:100%;background:#8a0303;border-radius:3px 3px 0 0;min-height:1px}
+  .rep-years em{font-size:10px;margin-bottom:2px}
+  .rep-list{margin:0;padding-left:20px;font-size:12px}
+  .rep-list li{margin:4px 0}
+  .rep-list li span{display:inline-block;max-width:78%;vertical-align:top}
+  .rep-list li em{float:right}
+  .rep-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .rep-btns button{flex:1 0 auto;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#0e1116;color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+  .rep-btns button:hover{border-color:var(--accent)}
+  .rep-foot{margin:12px 0 0;font-size:11px;color:var(--muted)}
+  @media (max-width:700px){.report{padding:0}.rep-card{width:100%;border-radius:0;min-height:100%}}
   .sheet-toggle{display:none}
   /* Phones: the panel becomes a bottom sheet. Collapsed it is a slim bar; tapping it opens the filters. */
   @media (max-width:700px){
@@ -175,7 +210,7 @@
     <b>Πηγή δεδομένων:</b> <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">Χάρτης Τροχαίων Συγκρούσεων, accidents.maps.gov.gr</a>
     (Υπουργείο Ψηφιακής Διακυβέρνησης, Υπουργείο Προστασίας του Πολίτη, Υπουργείο Υποδομών και Μεταφορών). Ανεπίσημο αντίγραφο, λήψη 13/11/2026. <span id="range"></span>
     💀 = αιτία από τις <a href="https://www.surreyroadsafe.org.uk/the-fatal-five/" target="_blank" rel="noopener">«Fatal Five»</a> (ταχύτητα, μέθη, απόσπαση προσοχής, απρόσεκτη οδήγηση). 🚙 οδηγός/όχημα · 🚶‍♀️ πεζός · 🚙🌧️ οδός &amp; καιρός · 🚙⚖️ υπό εκδίκαση.
-    Οι κύκλοι με αριθμό ομαδοποιούν κοντινές συγκρούσεις (πιο σκούρο κόκκινο = μεγαλύτερο ποσοστό Fatal 5)· πατήστε για ζουμ. Τα εικονίδια εμφανίζονται σε κοντινό ζουμ· πατήστε ένα σημείο για λεπτομέρειες.
+    Οι κύκλοι με αριθμό ομαδοποιούν κοντινές συγκρούσεις (πιο σκούρο κόκκινο = μεγαλύτερο ποσοστό Fatal 5)· πατήστε για ζουμ. Πατήστε ένα σημείο για λεπτομέρειες· σημεία με αριθμό ανοίγουν σε ξεχωριστές συγκρούσεις.
     <a href="https://github.com/angelopoulosk/greece-road-collisions">Δεδομένα &amp; κώδικας</a>.
   </p>
   </div>
@@ -201,6 +236,44 @@ map.addControl(new maplibregl.GeolocateControl({
   positionOptions: { enableHighAccuracy: true },
   fitBoundsOptions: { maxZoom: 15 },
   trackUserLocation: true, showAccuracyCircle: true
+}), 'top-right');
+
+// Text-button controls for the top-right corner.
+class TextCtrl {
+  constructor(build) { this.build = build; }
+  onAdd() { const d = document.createElement('div'); d.className = 'maplibregl-ctrl maplibregl-ctrl-group txt-ctrl'; this.build(d); return (this.el = d); }
+  onRemove() { this.el.remove(); }
+}
+// Base map: vector map, satellite imagery, or imagery with the map's labels on top (hybrid).
+let BASE_LABELS = [], baseMode = 'map';
+function addBase() {
+  const symbols = map.getStyle().layers.filter(l => l.type === 'symbol');
+  BASE_LABELS = symbols.map(l => l.id);
+  map.addSource('sat', { type: 'raster', tileSize: 256, maxzoom: 19,
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+    attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
+  map.addLayer({ id: 'sat', type: 'raster', source: 'sat', layout: { visibility: 'none' } }, symbols[0] && symbols[0].id);
+}
+function setBase(mode) {
+  if (!map.getLayer('sat')) return;
+  baseMode = mode;
+  map.setLayoutProperty('sat', 'visibility', mode === 'map' ? 'none' : 'visible');
+  for (const id of BASE_LABELS) map.setLayoutProperty(id, 'visibility', mode === 'sat' ? 'none' : 'visible');
+  document.querySelectorAll('[data-base]').forEach(b => b.classList.toggle('on', b.dataset.base === mode));
+}
+map.addControl(new TextCtrl((d) => {
+  for (const [mode, label] of [['map', 'Χάρτης'], ['sat', 'Δορυφόρος'], ['hyb', 'Υβριδικός']]) {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.base = mode;
+    if (mode === 'map') b.classList.add('on');
+    b.onclick = () => setBase(mode);
+    d.appendChild(b);
+  }
+}), 'top-right');
+map.addControl(new TextCtrl((d) => {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = '⬚ Εξαγωγή περιοχής';
+  b.title = 'Επιλέξτε ορθογώνιο στον χάρτη για αναφορά, εικόνα, δεδομένα και παρουσίαση';
+  b.onclick = () => startSelect();
+  d.appendChild(b);
 }), 'top-right');
 
 const fmt = new Intl.NumberFormat('el-GR');
@@ -232,9 +305,8 @@ function toGeoJSON(d, kind) {
 }
 
 // Collisions are drawn in stages: heatmap (country) -> count bubbles (region, city) -> coloured dots
-// (neighbourhood) -> emoji markers (street, zoom 16+). Transports keep the simpler heatmap -> dots.
+// (neighbourhood and closer). Emojis appear in the fan-out and popups. Transports: heatmap -> dots.
 const CAT_COLOR = ['match', ['get', 'cat'], 1, '#8a0303', 2, '#f08a24', 3, '#7b3fb5', 4, '#2f7f9e', '#8a8f98'];
-const EMOJI_ZOOM = 16;
 function addLayers(id, color, deep) {
   const staged = id === 'col';
   const empty = { type: 'FeatureCollection', features: [] };
@@ -253,7 +325,7 @@ function addLayers(id, color, deep) {
     // same features again, clustered up to zoom 13; each cluster sums its collisions and its Fatal Five ones
     map.addSource('colc', { type: 'geojson', data: empty, cluster: true, clusterMaxZoom: 13, clusterRadius: 55,
       clusterProperties: { sum: ['+', ['get', 'n']], fatal: ['+', ['get', 'fa']] } });
-    map.addLayer({ id: 'col-dot', type: 'circle', source: 'colc', minzoom: 8.5, maxzoom: EMOJI_ZOOM,
+    map.addLayer({ id: 'col-dot', type: 'circle', source: 'colc', minzoom: 8.5,
       filter: ['!', ['has', 'point_count']],
       layout: { 'circle-sort-key': ['+', ['case', ['==', ['get', 'cat'], 1], 100, 0], ['get', 'n']] },
       paint: {
@@ -263,6 +335,12 @@ function addLayers(id, color, deep) {
         'circle-opacity': 0.85,
         'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff'
       }});
+    // number on dots that stand for several collisions at one spot
+    map.addLayer({ id: 'col-dotn', type: 'symbol', source: 'colc', minzoom: 14,
+      filter: ['all', ['!', ['has', 'point_count']], ['>', ['get', 'n'], 1]],
+      layout: { 'text-field': ['to-string', ['get', 'n']], 'text-font': ['Noto Sans Bold'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 14, 9, 17, 12], 'text-allow-overlap': true },
+      paint: { 'text-color': '#ffffff' }});
     map.addLayer({ id: 'cl-bubble', type: 'circle', source: 'colc', minzoom: 8.5, filter: ['has', 'point_count'],
       paint: {
         // shade by the share of Fatal Five collisions in the bubble
@@ -276,7 +354,7 @@ function addLayers(id, color, deep) {
         'text-allow-overlap': true },
       paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0,0,0,.35)', 'text-halo-width': 1 }});
   }
-  map.addLayer({ id: id + '-pt', type: 'circle', source: staged ? 'colc' : id, minzoom: staged ? EMOJI_ZOOM : 10,
+  if (!staged) map.addLayer({ id: id + '-pt', type: 'circle', source: id, minzoom: 10,
     filter: ['all', ['==', ['get', 'f'], 0], ['==', ['get', 'n'], 1]],
     paint: {
       'circle-color': staged ? CAT_COLOR : color,
@@ -342,13 +420,9 @@ function addSirenLayer() {
     filter: ['>', ['get', 'n'], 1],
     layout: { 'icon-image': imageId, 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ICON_SIZE },
     paint: { 'icon-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11.5, 1] }});
-  // collisions with a category icon, and grouped uncategorised ones (dot + count)
-  map.addLayer({ id: 'col-icon', type: 'symbol', source: 'colc', minzoom: EMOJI_ZOOM,
-    filter: ['any', ['>', ['get', 'f'], 0], ['>', ['get', 'n'], 1]],
-    layout: {
-      'icon-image': imageId, 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-size': ICON_SIZE,
-      'symbol-sort-key': ['get', 'n']            // bigger groups drawn on top
-    }});
+  // outline of the exported rectangle
+  map.addSource('sel', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({ id: 'sel', type: 'line', source: 'sel', paint: { 'line-color': '#8a0303', 'line-width': 2, 'line-dasharray': [2, 2] } });
   // fan-out of an opened group
   map.addSource('spider', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'spider-legs', type: 'line', source: 'spider', filter: ['==', ['geometry-type'], 'LineString'],
@@ -379,6 +453,218 @@ function openSpider(kind, ix, center, key) {
   });
   map.getSource('spider').setData({ type: 'FeatureCollection', features });
   spiderOpen = { key };
+}
+
+// ---------- Area export: drag a rectangle, get a report with map image, data (CSV) and a PowerPoint.
+const CAT_NAMES = ['', 'Fatal 5', 'Οδηγός/όχημα (λοιπά)', 'Πεζός', 'Οδός & καιρός', 'Υπό εκδίκαση/λοιπά'];
+const CAT_HEX = ['', '8a0303', 'f08a24', '7b3fb5', '2f7f9e', '8a8f98'];
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let lastExport = null;
+
+function startSelect() {
+  if (!DATA.collisions || document.querySelector('.sel-ov')) return;
+  panelEl.classList.add('collapsed'); closeSpider(); closeReport();
+  const ov = document.createElement('div'); ov.className = 'sel-ov';
+  ov.innerHTML = '<div class="sel-hint">Σύρετε για να επιλέξετε ορθογώνιο <button type="button">Άκυρο</button></div>';
+  document.body.appendChild(ov);
+  let a = null, box = null;
+  const end = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') end(); };
+  document.addEventListener('keydown', onKey);
+  ov.querySelector('button').onclick = end;
+  ov.onpointerdown = (e) => {
+    if (e.target.closest('.sel-hint')) return;
+    ov.setPointerCapture(e.pointerId); a = [e.clientX, e.clientY];
+    box = document.createElement('div'); box.className = 'sel-box'; ov.appendChild(box);
+  };
+  const rect = (e) => [Math.min(a[0], e.clientX), Math.min(a[1], e.clientY), Math.abs(e.clientX - a[0]), Math.abs(e.clientY - a[1])];
+  ov.onpointermove = (e) => {
+    if (!a) return;
+    const [x, y, w, h] = rect(e);
+    Object.assign(box.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+  };
+  ov.onpointerup = (e) => {
+    if (!a) return;
+    const [x, y, w, h] = rect(e), r = map.getContainer().getBoundingClientRect();
+    end();
+    if (w < 12 || h < 12) return;
+    const sw = map.unproject([x - r.left, y + h - r.top]), ne = map.unproject([x + w - r.left, y - r.top]);
+    runExport([sw.lng, sw.lat, ne.lng, ne.lat]);
+  };
+}
+
+// Everything inside the rectangle that passes the current filters.
+function areaStats(b) {
+  const [w, s0, e, n0] = b.map(v => v * 1e5), ys = state.years, c = DATA.collisions, t = DATA.transports;
+  const inb = (d, i) => d.x[i] >= w && d.x[i] <= e && d.y[i] >= s0 && d.y[i] <= n0 && (!ys.size || ys.has(d.yr[i]));
+  const col = [], tra = [];
+  if (state.showCol) for (let i = 0; i < c.t.length; i++) if (state.causes.has(c.c[i]) && inb(c, i)) col.push(i);
+  if (state.showTra) for (let i = 0; i < t.t.length; i++) if (inb(t, i)) tra.push(i);
+  const byYear = {}, byCause = new Map(), byCat = [0, 0, 0, 0, 0, 0], spots = new Map();
+  let fatal = 0;
+  for (const i of col) {
+    byYear[c.yr[i]] = (byYear[c.yr[i]] || 0) + 1;
+    byCause.set(c.c[i], (byCause.get(c.c[i]) || 0) + 1);
+    byCat[c.cat[c.c[i]]]++;
+    if (c.isFatal[c.c[i]]) fatal++;
+    const k = c.x[i] + ',' + c.y[i];
+    let sp = spots.get(k); if (!sp) spots.set(k, sp = { i, n: 0, fa: 0 });
+    sp.n++; if (c.isFatal[c.c[i]]) sp.fa++;
+  }
+  const years = [...new Set(c.yr)].sort();
+  const all = state.causes.size === c.causes.length;
+  const onlyFatal = state.causes.size === c.fatal.length && c.fatal.every(i => state.causes.has(i));
+  const km = (b[2] - b[0]) * 111.32 * Math.cos((b[1] + b[3]) / 2 * Math.PI / 180) * (b[3] - b[1]) * 110.57;
+  return { b, col, tra, fatal, byCat, years, byYear: years.map(y => byYear[y] || 0),
+    causes: [...byCause].sort((p, q) => q[1] - p[1]),
+    spots: [...spots.values()].filter(sp => sp.n > 1).sort((p, q) => q.n - p.n).slice(0, 5),
+    km, filters: [
+      !state.showCol ? 'χωρίς συγκρούσεις' : all ? 'όλες οι αιτίες' : onlyFatal ? 'μόνο αιτίες Fatal 5' : state.causes.size + ' επιλεγμένες αιτίες',
+      ys.size ? 'έτη ' + [...ys].sort().join(', ') : 'όλα τα έτη',
+      state.showTra ? 'με διακομιδές' : ''].filter(Boolean).join(' · ') };
+}
+
+function runExport(b) {
+  const st = areaStats(b);
+  lastExport = st;
+  showReport(st);
+  const wide = !window.matchMedia('(max-width:700px)').matches;
+  map.getSource('sel').setData({ type: 'FeatureCollection', features: [] });
+  map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { duration: 0,
+    padding: wide ? { left: 380, top: 30, right: 170, bottom: 30 } : { left: 16, top: 150, right: 16, bottom: 100 } });
+  map.once('idle', () => {
+    map.once('render', () => {
+      const cv = map.getCanvas(), k = cv.width / cv.clientWidth;
+      const p1 = map.project([b[0], b[3]]), p2 = map.project([b[2], b[1]]);
+      const w = Math.round((p2.x - p1.x) * k), h = Math.round((p2.y - p1.y) * k);
+      const out = document.createElement('canvas'); out.width = w; out.height = h;
+      const ctx = out.getContext('2d');
+      ctx.drawImage(cv, Math.round(p1.x * k), Math.round(p1.y * k), w, h, 0, 0, w, h);
+      const credit = baseMode === 'map' ? '© OpenStreetMap · OpenFreeMap' : 'Imagery © Esri, Maxar · © OpenStreetMap';
+      ctx.font = Math.round(11 * k) + 'px system-ui, sans-serif';
+      const tw = ctx.measureText(credit).width + 10 * k;
+      ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillRect(w - tw, h - 18 * k, tw, 18 * k);
+      ctx.fillStyle = '#333'; ctx.textBaseline = 'middle'; ctx.fillText(credit, w - tw + 5 * k, h - 9 * k);
+      st.img = out.toDataURL('image/png'); st.imgW = w; st.imgH = h;
+      const im = document.getElementById('repImg');
+      if (im && lastExport === st) { im.src = st.img; im.hidden = false; document.getElementById('repWait').remove(); }
+      map.getSource('sel').setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString',
+        coordinates: [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]] } });
+    });
+    map.triggerRepaint();
+  });
+}
+
+function closeReport() {
+  const m = document.getElementById('report'); if (m) m.remove();
+  if (map.getSource('sel')) map.getSource('sel').setData({ type: 'FeatureCollection', features: [] });
+}
+function showReport(st) {
+  closeReport();
+  const c = DATA.collisions, n = st.col.length, pct = n ? Math.round(100 * st.fatal / n) : 0;
+  const maxY = Math.max(1, ...st.byYear), maxC = Math.max(1, ...st.byCat);
+  const m = document.createElement('div'); m.id = 'report'; m.className = 'report';
+  m.innerHTML = `<div class="rep-card" role="dialog" aria-label="Αναφορά περιοχής">
+    <button type="button" class="rep-x" aria-label="Κλείσιμο">×</button>
+    <h2>Αναφορά περιοχής</h2>
+    <p class="rep-sub">${fmt.format(Math.round(st.km * 10) / 10)} km² · ${esc(st.filters)}</p>
+    <div id="repWait" class="rep-wait">Ετοιμασία εικόνας χάρτη…</div><img id="repImg" alt="Χάρτης της επιλεγμένης περιοχής" hidden>
+    <div class="rep-nums">
+      <div><b>${fmt.format(n)}</b><span>συγκρούσεις</span></div>
+      <div><b style="color:#ff6b5e">${fmt.format(st.fatal)}</b><span>από αιτίες Fatal 5 (${pct}%)</span></div>
+      ${state.showTra ? `<div><b style="color:var(--tra)">${fmt.format(st.tra.length)}</b><span>διακομιδές</span></div>` : ''}
+    </div>
+    <h3>Ανά κατηγορία</h3>
+    <div class="rep-bars">${[1, 2, 3, 4, 5].map(k => `<div><span>${CAT_NAMES[k]}</span><i style="width:${Math.round(60 * st.byCat[k] / maxC)}%;background:#${CAT_HEX[k]}"></i><em>${fmt.format(st.byCat[k])}</em></div>`).join('')}</div>
+    <h3>Ανά έτος</h3>
+    <div class="rep-years">${st.years.map((y, i) => `<div><em>${st.byYear[i]}</em><i style="height:${Math.round(100 * st.byYear[i] / maxY)}%"></i><span>${y}</span></div>`).join('')}</div>
+    <h3>Συχνότερες αιτίες</h3>
+    <ol class="rep-list">${st.causes.slice(0, 5).map(([k, v]) => `<li><span>${esc(causeLabel(c, k))}</span><em>${fmt.format(v)}</em></li>`).join('') || '<li>–</li>'}</ol>
+    ${st.spots.length ? `<h3>Σημεία με τις περισσότερες συγκρούσεις</h3><ol class="rep-list">${st.spots.map(sp => `<li><span>${esc(c.places[c.o[sp.i]])} (${(c.y[sp.i] / 1e5).toFixed(5)}, ${(c.x[sp.i] / 1e5).toFixed(5)})</span><em>${sp.n}${sp.fa ? ' · ' + sp.fa + ' 💀' : ''}</em></li>`).join('')}</ol>` : ''}
+    <div class="rep-btns">
+      <button type="button" data-x="png">Εικόνα χάρτη (PNG)</button>
+      <button type="button" data-x="csv">Δεδομένα (CSV)</button>
+      <button type="button" data-x="pptx">Παρουσίαση (PowerPoint)</button>
+    </div>
+    <p class="rep-foot">Πηγή: accidents.maps.gov.gr · Ανεπίσημη επεξεργασία, «Δεν είναι ατύχημα».</p></div>`;
+  document.body.appendChild(m);
+  m.querySelector('.rep-x').onclick = closeReport;
+  m.onclick = (e) => { if (e.target === m) closeReport(); };
+  m.querySelector('[data-x=png]').onclick = () => st.img && saveAs(st.img, 'den-einai-atyxima-xartis.png');
+  m.querySelector('[data-x=csv]').onclick = () => saveAs(URL.createObjectURL(new Blob(['﻿', areaCsv(st)], { type: 'text/csv' })), 'den-einai-atyxima-dedomena.csv');
+  m.querySelector('[data-x=pptx]').onclick = async (e) => {
+    const bt = e.currentTarget, label = bt.textContent;
+    bt.disabled = true; bt.textContent = 'Δημιουργία…';
+    try { (await buildPptx(st)).writeFile({ fileName: 'den-einai-atyxima-parousiasi.pptx' }); }
+    catch (err) { bt.textContent = 'Αποτυχία: ' + err.message; return; }
+    bt.disabled = false; bt.textContent = label;
+  };
+}
+function saveAs(href, name) { const a = document.createElement('a'); a.href = href; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+
+function areaCsv(st) {
+  const q = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  const when = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Athens', dateStyle: 'short', timeStyle: 'short' });
+  const rows = ['type,datetime_athens,longitude,latitude,municipality,cause,fatal_five,source_records'];
+  const add = (d, ix, type) => { for (const i of ix) rows.push([type, when.format(new Date(d.t[i] * 60000)), d.x[i] / 1e5, d.y[i] / 1e5,
+    q(d.places[d.o[i]]), q(type === 'collision' ? d.causes[d.c[i]] : ''), type === 'collision' && d.isFatal[d.c[i]] ? 'yes' : '', d.r ? d.r[i] : 1].join(',')); };
+  add(DATA.collisions, st.col, 'collision'); add(DATA.transports, st.tra, 'transport');
+  return rows.join('\r\n');
+}
+
+function loadScript(src) {
+  return new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = src; sc.onload = ok;
+    sc.onerror = () => no(new Error('δεν φορτώθηκε η βιβλιοθήκη')); document.head.appendChild(sc); });
+}
+async function buildPptx(st) {
+  if (!window.PptxGenJS) await loadScript('https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js');
+  const c = DATA.collisions, n = st.col.length, pct = n ? Math.round(100 * st.fatal / n) : 0;
+  const p = new PptxGenJS(); p.layout = 'LAYOUT_WIDE'; p.title = 'Δεν είναι ατύχημα — αναφορά περιοχής';
+  const INK = '161B22', MUTED = '5B6470', BLOOD = '8A0303', FONT = 'Arial';
+  const head = (s, t) => s.addText(t, { x: 0.6, y: 0.35, w: 12.1, h: 0.7, fontSize: 26, bold: true, color: INK, fontFace: FONT });
+  const foot = (s) => s.addText('Πηγή: accidents.maps.gov.gr · ' + st.filters, { x: 0.6, y: 6.95, w: 12.1, h: 0.3, fontSize: 10, color: MUTED, fontFace: FONT });
+  const fit = (bw, bh) => { const k = Math.min(bw / st.imgW, bh / st.imgH); return [st.imgW * k, st.imgH * k]; };
+
+  let s = p.addSlide(); s.background = { color: INK };
+  s.addText([{ text: 'Δεν είναι ', options: { color: 'E8ECF1' } }, { text: 'ατύχημα', options: { color: 'FFD23F' } }],
+    { x: 0.6, y: 0.9, w: 5.6, h: 1, fontSize: 40, bold: true, fontFace: FONT });
+  s.addText('Αναφορά περιοχής: τροχαίες συγκρούσεις' + (state.showTra ? ' και διακομιδές' : ''), { x: 0.6, y: 2.0, w: 5.6, h: 0.9, fontSize: 20, color: 'B9C4D2', fontFace: FONT });
+  s.addText(`${fmt.format(n)} συγκρούσεις\n${fmt.format(st.fatal)} από αιτίες Fatal 5 (${pct}%)` + (state.showTra ? `\n${fmt.format(st.tra.length)} διακομιδές` : ''),
+    { x: 0.6, y: 3.2, w: 5.6, h: 1.6, fontSize: 20, bold: true, color: 'FF6B3D', fontFace: FONT });
+  s.addText(`${fmt.format(Math.round(st.km * 10) / 10)} km² · ${st.filters}\nΠηγή: accidents.maps.gov.gr`, { x: 0.6, y: 5.6, w: 5.6, h: 0.9, fontSize: 12, color: '8B96A5', fontFace: FONT });
+  if (st.img) { const [w, h] = fit(6.2, 6.3); s.addImage({ data: st.img.slice(5), x: 6.6 + (6.2 - w) / 2, y: 0.6 + (6.3 - h) / 2, w, h }); }
+
+  if (st.img) { s = p.addSlide(); head(s, 'Χάρτης της περιοχής'); const [w, h] = fit(12.1, 5.6); s.addImage({ data: st.img.slice(5), x: 0.6 + (12.1 - w) / 2, y: 1.2, w, h }); foot(s); }
+
+  s = p.addSlide(); head(s, 'Συγκρούσεις ανά κατηγορία αιτίας');
+  s.addChart(p.ChartType.bar, [{ name: 'Συγκρούσεις', labels: CAT_NAMES.slice(1), values: st.byCat.slice(1) }],
+    { x: 0.6, y: 1.2, w: 12.1, h: 5.5, barDir: 'bar', chartColors: CAT_HEX.slice(1), showValue: true, showLegend: false,
+      catAxisLabelFontSize: 13, valAxisLabelFontSize: 11, dataLabelFontSize: 12, catAxisOrientation: 'maxMin', valAxisHidden: true, valGridLine: { style: 'none' } });
+  foot(s);
+
+  s = p.addSlide(); head(s, 'Συγκρούσεις ανά έτος');
+  s.addChart(p.ChartType.bar, [{ name: 'Συγκρούσεις', labels: st.years.map(String), values: st.byYear }],
+    { x: 0.6, y: 1.2, w: 12.1, h: 5.2, barDir: 'col', chartColors: [BLOOD], showValue: true, showLegend: false,
+      catAxisLabelFontSize: 13, dataLabelFontSize: 12, valAxisHidden: true, valGridLine: { style: 'none' } });
+  s.addText('Το 2020 καλύπτει μόνο Οκτ.–Δεκ. και το 2025 έως τον Μάιο.', { x: 0.6, y: 6.5, w: 12.1, h: 0.3, fontSize: 11, color: MUTED, fontFace: FONT });
+  foot(s);
+
+  const cell = (t, o) => ({ text: String(t), options: Object.assign({ fontSize: 13, color: INK, fontFace: FONT }, o) });
+  const th = (t, o) => cell(t, Object.assign({ bold: true, color: 'FFFFFF', fill: { color: INK } }, o));
+  s = p.addSlide(); head(s, 'Συχνότερες αιτίες');
+  s.addTable([[th('Αιτία'), th('Fatal 5', { align: 'center' }), th('Συγκρούσεις', { align: 'right' })]].concat(
+    st.causes.slice(0, 10).map(([k, v]) => [cell(c.causes[k]), cell(c.isFatal[k] ? '💀' : '', { align: 'center' }), cell(fmt.format(v), { align: 'right' })])),
+    { x: 0.6, y: 1.2, w: 12.1, colW: [8.6, 1.5, 2.0], border: { type: 'solid', color: 'D5D9DE', pt: 0.5 } });
+  foot(s);
+
+  if (st.spots.length) {
+    s = p.addSlide(); head(s, 'Σημεία με τις περισσότερες συγκρούσεις');
+    s.addTable([[th('Δήμος'), th('Συντεταγμένες'), th('Συγκρούσεις', { align: 'right' }), th('Fatal 5', { align: 'right' })]].concat(
+      st.spots.map(sp => [cell(c.places[c.o[sp.i]]), cell((c.y[sp.i] / 1e5).toFixed(5) + ', ' + (c.x[sp.i] / 1e5).toFixed(5)), cell(sp.n, { align: 'right' }), cell(sp.fa, { align: 'right' })])),
+      { x: 0.6, y: 1.2, w: 12.1, colW: [5.1, 3.6, 1.7, 1.7], border: { type: 'solid', color: 'D5D9DE', pt: 0.5 } });
+    foot(s);
+  }
+  return p;
 }
 
 // Phones: the bottom bar opens and closes the filter sheet.
@@ -557,7 +843,7 @@ async function load(name) {
 
 Promise.all([load('collisions'), load('transports'), new Promise(r => map.on('load', r))]).then(([c, t]) => {
   DATA.collisions = c; DATA.transports = t;
-  addLayers('tra', TRA, '#003c66'); addLayers('col', COL, '#7a1500'); addSirenLayer();
+  addBase(); addLayers('tra', TRA, '#003c66'); addLayers('col', COL, '#7a1500'); addSirenLayer();
   buildYears(); buildCauses();
   const span = (d) => { let a = Infinity, b = -Infinity; for (const m of d.t) { if (m < a) a = m; if (m > b) b = m; } return [a, b]; };
   const md = new Intl.DateTimeFormat('el-GR', { timeZone: 'Europe/Athens', month: '2-digit', year: 'numeric' });

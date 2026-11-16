@@ -437,7 +437,7 @@ function popup(kind, i, lngLat) {
 }
 
 async function load(name) {
-  const d = await (await fetch('data/' + name + '.json')).json();
+  const d = await (await fetch('data/' + name + '.json', { cache: 'no-cache' })   // revalidate, so data updates show at once).json();
   d.yr = d.t.map(yearOf);             // year of each record
   d.fatal = d.fatal || [];
   d.isFatal = d.causes.map((_, i) => d.fatal.includes(i));

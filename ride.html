@@ -55,6 +55,9 @@
       border-width:1px 0 0;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
     .maplibregl-ctrl-bottom-right{bottom:calc(52vh + 4px)}
     .hint{display:none}
+    /* on phones the route summary comes right under the title, before the options */
+    .panel{display:flex;flex-direction:column}
+    .panel > *{order:2} .panel > h1{order:0} #result{order:1;margin-bottom:6px}
   }
 </style>
 </head>
@@ -444,7 +447,7 @@ map.on('click', (e) => { if (!P.a) setPoint('a', e.lngLat); else setPoint('b', e
     if (st.b) setPoint('b', st.b, false);
     compute();
     if (st.a && st.b) map.fitBounds([[Math.min(st.a.lng, st.b.lng), Math.min(st.a.lat, st.b.lat)], [Math.max(st.a.lng, st.b.lng), Math.max(st.a.lat, st.b.lat)]],
-      { padding: window.matchMedia('(max-width:700px)').matches ? { top: 40, bottom: window.innerHeight * 0.55, left: 30, right: 50 } : { top: 60, bottom: 60, left: 380, right: 60 }, duration: 0 });
+      { padding: window.matchMedia('(max-width:700px)').matches ? { top: 50, bottom: window.innerHeight * 0.6, left: 40, right: 60 } : { top: 60, bottom: 60, left: 380, right: 60 }, duration: 0 });
   } catch (err) { msg('Σφάλμα φόρτωσης: ' + err.message); }
 })();
 </script>

@@ -62,6 +62,9 @@
       <div><b id="nLinks">–</b><span>σύνδεσμοι που θα τα ένωναν</span></div>
     </div>
 
+    <div class="label">Δρόμοι που εξετάζονται</div>
+    <div class="tabs"><button type="button" id="mAll" class="on">Όλοι οι δρόμοι</button><button type="button" id="mMain">Μόνο κύριοι δρόμοι</button></div>
+
     <div class="label">Υπόμνημα</div>
     <div class="lg">
       <label><input type="checkbox" data-l="safe1" checked><i style="border-color:#0b8a3c"></i>Χωρίς σύγκρουση: το μεγαλύτερο συνεχές δίκτυο</label>
@@ -79,7 +82,7 @@
     <p class="foot">
       <b>Προσοχή στην ερμηνεία.</b> «Χωρίς σύγκρουση» σημαίνει ότι δεν έχει καταγραφεί σύγκρουση σε απόσταση 25 μ. από το τμήμα, όχι ότι ο δρόμος είναι ασφαλής:
       τα δεδομένα δεν περιλαμβάνουν κυκλοφοριακό φόρτο, άρα ήσυχοι δρόμοι με λίγη κίνηση φαίνονται «ασφαλείς» απλώς επειδή περνούν λίγοι.
-      Δρόμοι: OpenStreetMap (κύριοι και τοπικοί, χωρίς σήραγγες). Γειτονιές: σημεία «suburb» του OpenStreetMap, κάθε τμήμα ανήκει στην πλησιέστερη.
+      Δρόμοι: OpenStreetMap (κύριοι και τοπικοί, χωρίς σήραγγες)· η επιλογή «Μόνο κύριοι δρόμοι» αφήνει έξω τους τοπικούς, όπου το πρόβλημα αυτό είναι μεγαλύτερο. Γειτονιές: σημεία «suburb» του OpenStreetMap, κάθε τμήμα ανήκει στην πλησιέστερη.
       Πηγή συγκρούσεων: <a href="https://accidents.maps.gov.gr/geo-analytics/" target="_blank" rel="noopener">accidents.maps.gov.gr</a>.
     </p>
   </div>
@@ -87,7 +90,7 @@
 
 <script>
 // Area analysed (Athens basin), the tile zoom the roads are read from, and the analysis parameters.
-const BBOX = [23.60, 37.86, 23.86, 38.10], Z = 12;
+const BBOX = [23.56, 37.85, 23.90, 38.12], Z = 12;
 const SNAP = 25;          // a collision counts for every road piece within this many metres
 const PIECE = 100;        // roads are cut into pieces of about this length (m)
 const JOIN = 6;           // road pieces whose vertices are this close (m) are connected
@@ -96,6 +99,7 @@ const PLACES = new Set(['suburb', 'town', 'village', 'quarter', 'neighbourhood']
 // local flat projection in metres
 const LON0 = BBOX[0], LAT0 = BBOX[1], KX = 111320 * Math.cos(38 * Math.PI / 180), KY = 110950;
 const toXY = (lon, lat) => [(lon - LON0) * KX, (lat - LAT0) * KY];
+const XMAX = (BBOX[2] - BBOX[0]) * KX, YMAX = (BBOX[3] - BBOX[1]) * KY;
 const toLL = (x, y) => [+(x / KX + LON0).toFixed(6), +(y / KY + LAT0).toFixed(6)];
 const fmt = new Intl.NumberFormat('el-GR', { maximumFractionDigits: 1 });
 const status = (t) => { document.getElementById('status').textContent = t; };
@@ -142,6 +146,7 @@ async function loadRoads() {
       const f = pl.feature(i), pr = f.properties, p = f.loadGeometry()[0][0];
       if (!PLACES.has(pr.class) || !pr.name || p.x < 0 || p.x >= pl.extent || p.y < 0 || p.y >= pl.extent) continue;
       const [X, Y] = ll(p, pl.extent);
+      if (X < 0 || X > XMAX || Y < 0 || Y > YMAX) continue;
       places.set(pr.name + '|' + Math.round(X / 200) + '|' + Math.round(Y / 200), { name: pr.name, X, Y, km: 0, safeKm: 0, n: 0 });
     }
     status('Λήψη δρόμων… ' + (++done) + '/' + jobs.length);
@@ -160,11 +165,17 @@ function cut(pts, cls, out) {
   for (let k = 1; k < dense.length; k++) {
     len += Math.hypot(dense[k][0] - dense[k - 1][0], dense[k][1] - dense[k - 1][1]);
     cur.push(dense[k]);
-    if (len >= PIECE || k === dense.length - 1) { if (len > 1) out.push({ pts: cur, len, cls, n: 0 }); cur = [dense[k]]; len = 0; }
+    if (len >= PIECE || k === dense.length - 1) {
+      const m = cur[cur.length >> 1];
+      if (len > 1 && m[0] >= 0 && m[0] <= XMAX && m[1] >= 0 && m[1] <= YMAX) out.push({ pts: cur, len, cls, n: 0 });
+      cur = [dense[k]]; len = 0;
+    }
   }
 }
 
 function analyse(pieces, places, col) {
+  for (const p of pieces) { p.n = 0; p.k = 0; p.link = false; }
+  for (const pl of places) { pl.km = 0; pl.safeKm = 0; pl.n = 0; }
   // --- collisions onto road pieces
   const CELL = 50, grid = new Map(), key = (cx, cy) => cx * 100000 + cy;
   pieces.forEach((p, id) => {
@@ -227,9 +238,11 @@ function analyse(pieces, places, col) {
     const m = p.pts[p.pts.length >> 1], pl = near(places, m[0], m[1], 1500);
     if (pl) { pl.km += p.len / 1000; if (!p.n) pl.safeKm += p.len / 1000; }
   });
-  const hoods = places.filter(pl => pl.km >= 4).map(pl => Object.assign(pl, { rate: pl.n / pl.km })).sort((a, b) => a.rate - b.rate);
+  const hoods = places.filter(pl => pl.km >= 8).map(pl => Object.assign(pl, { rate: pl.n / pl.km })).sort((a, b) => a.rate - b.rate);
   return { total, safe, mainLen: main ? main[1] : 0, nets: big.size, links, hoods, used, inBox };
 }
+
+const hoodColor = (lo, hi) => ['interpolate', ['linear'], ['get', 'rate'], lo, '#35d07a', (lo + hi) / 2 + 0.001, '#f2c230', hi + 0.002, '#d6362b'];
 
 function draw(pieces, res) {
   const roads = { type: 'FeatureCollection', features: pieces.map(p => ({ type: 'Feature',
@@ -239,6 +252,8 @@ function draw(pieces, res) {
   const hoods = { type: 'FeatureCollection', features: res.hoods.map((h, i) => ({ type: 'Feature',
     properties: { name: h.name, rate: h.rate, label: h.name + '\n' + fmt.format(h.rate) + '/χλμ.', rank: i + 1 },
     geometry: { type: 'Point', coordinates: toLL(h.X, h.Y) } })) };
+  if (map.getSource('roads')) { map.getSource('roads').setData(roads); map.getSource('hoods').setData(hoods);
+    map.setPaintProperty('hoods', 'circle-color', hoodColor(lo, hi)); return panel(res); }
   map.addSource('roads', { type: 'geojson', data: roads });
   map.addSource('hoods', { type: 'geojson', data: hoods });
   const W = (a, b) => ['interpolate', ['linear'], ['zoom'], 10, a, 16, b];
@@ -254,8 +269,7 @@ function draw(pieces, res) {
   map.addLayer({ id: 'links', type: 'line', source: 'roads', filter: ['==', ['get', 'link'], 1],
     paint: { 'line-color': '#7a4ae0', 'line-width': W(1.5, 6), 'line-dasharray': [1.2, 1] } });
   map.addLayer({ id: 'hoods', type: 'circle', source: 'hoods',
-    paint: { 'circle-radius': W(7, 16), 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-opacity': 0.9,
-      'circle-color': ['interpolate', ['linear'], ['get', 'rate'], lo, '#1e9e55', (lo + hi) / 2, '#e8b93a', hi, '#b3261e'] } });
+    paint: { 'circle-radius': W(9, 18), 'circle-stroke-width': 2.5, 'circle-stroke-color': '#16202b', 'circle-color': hoodColor(lo, hi) } });
   map.addLayer({ id: 'hoods-name', type: 'symbol', source: 'hoods', minzoom: 11.5,
     layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': [0, 1.6], 'text-anchor': 'top' },
     paint: { 'text-color': '#16202b', 'text-halo-color': '#fff', 'text-halo-width': 1.6 } });
@@ -270,7 +284,10 @@ function draw(pieces, res) {
   }
   document.querySelectorAll('[data-l]').forEach(cb => cb.onchange = () => {
     for (const id of cb.dataset.l === 'hoods' ? ['hoods', 'hoods-name'] : [cb.dataset.l]) map.setLayoutProperty(id, 'visibility', cb.checked ? 'visible' : 'none'); });
+  panel(res);
+}
 
+function panel(res) {
   document.getElementById('kmSafe').textContent = fmt.format(res.safe / 1000);
   document.getElementById('pctSafe').textContent = Math.round(100 * res.safe / res.total) + '%';
   document.getElementById('kmMain').textContent = fmt.format(res.mainLen / 1000);
@@ -292,9 +309,17 @@ function draw(pieces, res) {
     await new Promise(r => map.on('load', r));
     const [roads, col] = await Promise.all([loadRoads(), fetch('data/collisions.json', { cache: 'no-cache' }).then(r => r.json())]);
     status('Υπολογισμός…'); await new Promise(r => setTimeout(r, 30));
-    const res = analyse(roads.pieces, roads.places, col);
-    draw(roads.pieces, res);
-    window.SAFE = { pieces: roads.pieces, res };     // kept for inspection and for freezing the result into a data file later
+    // "main roads" leaves out local streets (class minor), where little traffic means few collisions anyway
+    const run = (mainOnly) => {
+      const pieces = mainOnly ? roads.pieces.filter(p => p.cls !== 'minor') : roads.pieces;
+      const res = analyse(pieces, roads.places, col);
+      draw(pieces, res);
+      window.SAFE = { pieces, res };     // kept for inspection and for freezing the result into a data file later
+    };
+    run(false);
+    const mA = document.getElementById('mAll'), mM = document.getElementById('mMain');
+    mA.onclick = () => { mA.classList.add('on'); mM.classList.remove('on'); run(false); };
+    mM.onclick = () => { mM.classList.add('on'); mA.classList.remove('on'); run(true); };
     document.getElementById('status').remove(); document.getElementById('body').hidden = false;
   } catch (err) { status('Σφάλμα: ' + err.message); }
 })();

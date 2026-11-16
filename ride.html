@@ -136,8 +136,31 @@ map.addControl(geo, 'top-right');
 
 // ---------- graph
 let G = null;
+// The graph comes from, in order: a published data/bike-graph.json, a copy saved on this device,
+// or a build in the browser (first visit only), which is then saved on this device.
+const IDB = {
+  open() { return new Promise((ok, no) => { const r = indexedDB.open('ride', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); },
+  async get(k) { const db = await this.open(); return new Promise((ok, no) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }); },
+  async set(k, v) { const db = await this.open(); return new Promise((ok, no) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = ok; t.onerror = () => no(t.error); }); }
+};
+const MAX_AGE_DAYS = 60;
+async function getGraphData() {
+  const { buildGraph, GRAPH_VERSION } = await import('./tools/bike-graph-lib.js');
+  try { const r = await fetch('data/bike-graph.json', { cache: 'no-cache' }); if (r.ok) { const d = await r.json(); if (d.v === GRAPH_VERSION) return d; } } catch (e) { /* not published */ }
+  let saved = null;
+  try { saved = await IDB.get('graph'); } catch (e) { /* storage unavailable */ }
+  if (saved && saved.v === GRAPH_VERSION && (Date.now() - Date.parse(saved.built)) / 864e5 < MAX_AGE_DAYS) return saved;
+  msg('Πρώτη χρήση σε αυτή τη συσκευή: κατεβάζω τον χάρτη δρόμων (~27 MB) και τον επεξεργάζομαι, περίπου 10–30 δευτερόλεπτα…');
+  const steps = { 'Streets read': 'Δρόμοι: ✓', 'Edges': 'Συνδέσεις: ✓', 'Terrain': 'Υψόμετρα: ✓', 'Collisions placed': 'Συγκρούσεις: ✓' };
+  const d = await buildGraph({ collisionsUrl: 'data/collisions.json',
+    log: (t) => { const m = /^\s*(\d+)\/(\d+) tiles/.exec(t); if (m) msg('Κατέβασμα χάρτη δρόμων: ' + Math.round(100 * m[1] / m[2]) + '%…');
+      for (const k in steps) if (t.startsWith(k)) msg(steps[k] + ' …'); } });
+  try { await IDB.set('graph', d); } catch (e) { /* could not save: it will be rebuilt next time */ }
+  return d;
+}
 async function loadGraph() {
-  const d = await (await fetch('data/bike-graph.json', { cache: 'no-cache' })).json();
+  const d = await getGraphData();
   const nN = d.n.x.length, nE = d.e.a.length;
   const NX = new Float64Array(nN), NY = new Float64Array(nN), NZ = new Float32Array(nN);
   for (let i = 0, x = 0, y = 0; i < nN; i++) { x += d.n.x[i]; y += d.n.y[i]; NX[i] = x; NY[i] = y; NZ[i] = d.n.e[i] / 10; }
@@ -415,7 +438,7 @@ map.on('click', (e) => { if (!P.a) setPoint('a', e.lngLat); else setPoint('b', e
   try {
     await Promise.all([loadGraph(), new Promise(r => map.on('load', r))]);
     addLayers();
-    msg(st.a ? '' : 'Πατήστε στον χάρτη για αφετηρία.');
+    msg(st.a ? '' : 'Έτοιμο. Πατήστε στον χάρτη για αφετηρία.');
     if (st.a) setPoint('a', st.a, false);
     if (st.b) setPoint('b', st.b, false);
     compute();

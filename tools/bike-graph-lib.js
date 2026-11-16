@@ -1,0 +1,323 @@
+// Builds the Athens cycling road graph in the browser. Used by tools/build-bike-graph.html and ride.html.
+import { VectorTile } from 'https://esm.sh/@mapbox/vector-tile@2.0.3';
+import Pbf from 'https://esm.sh/pbf@4.0.1';
+
+export const GRAPH_VERSION = 2;
+
+// Area (Athens basin), tile zoom and analysis settings.
+const BBOX = [23.56, 37.85, 23.90, 38.12];
+const Z = 14, EXT = 4096, WORLD = 2 ** Z * EXT;           // world grid in z14 tile units (~0.47 m here)
+const CLS = { primary: 0, secondary: 1, tertiary: 2, minor: 3 };   // no motorways or trunk roads for bikes
+const SNAP_END = 6;          // units: a dead end this close to another street is joined to it
+const COL_R = 20;            // metres: a collision counts for every street within this distance
+const STEP = 15;             // metres between elevation samples along a street
+const STEEP = 0.05;          // gradient above which climbing counts as steep
+const DP = 3;                // units: geometry simplification tolerance for drawing
+
+const lon2t = (lon, z) => Math.floor((lon + 180) / 360 * 2 ** z);
+const lat2t = (lat, z) => Math.floor((1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * 2 ** z);
+const toX = (lon) => (lon + 180) / 360 * WORLD;
+const toY = (lat) => (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * WORLD;
+const latOf = (Y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * Y / WORLD))) * 180 / Math.PI;
+const MPU = 40075016.686 / WORLD * Math.cos(38 * Math.PI / 180);   // metres per unit, fine for this small area
+
+async function pool(items, n, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: n }, async () => { while (i < items.length) { const k = i++; await fn(items[k], k); } }));
+}
+
+export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
+  const t0 = performance.now();
+  // ---------- 1. streets from the vector tiles
+  const style = await (await fetch('https://tiles.openfreemap.org/styles/positron')).json();
+  let src = style.sources.openmaptiles;
+  if (!src.tiles) src = await (await fetch(src.url)).json();
+  const tpl = src.tiles[0];
+  const jobs = [];
+  for (let x = lon2t(BBOX[0], Z); x <= lon2t(BBOX[2], Z); x++)
+    for (let y = lat2t(BBOX[3], Z); y <= lat2t(BBOX[1], Z); y++) jobs.push([x, y]);
+  log(`Streets: ${jobs.length} tiles from ${tpl}`);
+
+  const key2id = new Map(), NX = [], NY = [];
+  const node = (X, Y) => { const k = X * 67108864 + Y; let id = key2id.get(k);
+    if (id === undefined) { id = NX.length; key2id.set(k, id); NX.push(X); NY.push(Y); } return id; };
+  let SA = [], SB = [], SC = [], SO = [], SBR = [];
+  const seen = new Set();
+  let done = 0, bytes = 0;
+  await pool(jobs, 8, async ([tx, ty]) => {
+    const buf = await (await fetch(tpl.replace('{z}', Z).replace('{x}', tx).replace('{y}', ty))).arrayBuffer();
+    bytes += buf.byteLength;
+    const tr = new VectorTile(new Pbf(buf)).layers.transportation;
+    for (let i = 0; tr && i < tr.length; i++) {
+      const f = tr.feature(i), p = f.properties, c = CLS[p.class];
+      if (c === undefined || p.brunnel === 'tunnel' || p.bicycle === 'no') continue;
+      if (p.access === 'no' && p.bicycle !== 'yes' && p.bicycle !== 'designated') continue;
+      const ow = p.oneway === 1 ? 1 : p.oneway === -1 ? -1 : 0, br = p.brunnel === 'bridge' ? 1 : 0, sc = EXT / tr.extent;
+      for (const line of f.loadGeometry()) {
+        for (let k = 1; k < line.length; k++) {
+          const a = line[k - 1], b = line[k], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          if (mx < 0 || mx >= tr.extent || my < 0 || my >= tr.extent) continue;   // each segment belongs to one tile
+          let ia = node(tx * EXT + Math.round(a.x * sc), ty * EXT + Math.round(a.y * sc));
+          let ib = node(tx * EXT + Math.round(b.x * sc), ty * EXT + Math.round(b.y * sc));
+          if (ia === ib) continue;
+          if (ow === -1) { const t = ia; ia = ib; ib = t; }
+          const k2 = ia < ib ? ia * 4194304 + ib : ib * 4194304 + ia;
+          if (seen.has(k2)) continue;
+          seen.add(k2);
+          SA.push(ia); SB.push(ib); SC.push(c); SO.push(ow ? 1 : 0); SBR.push(br);
+        }
+      }
+    }
+    if (++done % 25 === 0) log(`  ${done}/${jobs.length} tiles, ${(bytes / 1e6).toFixed(1)} MB, ${SA.length} segments`);
+  });
+  if (NX.length >= 4194304) throw new Error('too many nodes');
+  log(`Streets read: ${NX.length} points, ${SA.length} segments, ${(bytes / 1e6).toFixed(1)} MB`);
+
+  // ---------- 2. join dead ends that stop just short of another street (lost junction points)
+  {
+    const S = SA.length, deg = new Int32Array(NX.length), segOf = new Int32Array(NX.length);
+    for (let s = 0; s < S; s++) { deg[SA[s]]++; deg[SB[s]]++; segOf[SA[s]] = s; segOf[SB[s]] = s; }
+    const CELL = 64, grid = new Map(), gk = (cx, cy) => cx * 1048576 + cy;
+    for (let s = 0; s < S; s++) {
+      const ax = NX[SA[s]], ay = NY[SA[s]], bx = NX[SB[s]], by = NY[SB[s]];
+      for (let cx = Math.floor((Math.min(ax, bx) - SNAP_END) / CELL); cx <= Math.floor((Math.max(ax, bx) + SNAP_END) / CELL); cx++)
+        for (let cy = Math.floor((Math.min(ay, by) - SNAP_END) / CELL); cy <= Math.floor((Math.max(ay, by) + SNAP_END) / CELL); cy++) {
+          const g = gk(cx, cy); let arr = grid.get(g); if (!arr) grid.set(g, arr = []); arr.push(s);
+        }
+    }
+    const splits = new Map(); let joins = 0, links = 0;
+    for (let n = 0; n < NX.length; n++) {
+      if (deg[n] !== 1) continue;
+      const X = NX[n], Y = NY[n], arr = grid.get(gk(Math.floor(X / CELL), Math.floor(Y / CELL)));
+      if (!arr) continue;
+      let best = -1, bd = SNAP_END + 1e-9, bt = 0;
+      for (const s of arr) {
+        if (SA[s] === n || SB[s] === n) continue;
+        const ax = NX[SA[s]], ay = NY[SA[s]], dx = NX[SB[s]] - ax, dy = NY[SB[s]] - ay;
+        const t = Math.max(0, Math.min(1, ((X - ax) * dx + (Y - ay) * dy) / (dx * dx + dy * dy)));
+        const d = Math.hypot(X - ax - t * dx, Y - ay - t * dy);
+        if (d < bd) { bd = d; best = s; bt = t; }
+      }
+      if (best < 0) continue;
+      const own = segOf[n];
+      if (bt < 0.02 || bt > 0.98) {           // next to another street's end point: add a short link
+        const e = bt < 0.5 ? SA[best] : SB[best];
+        if (e === n) continue;
+        SA.push(n); SB.push(e); SC.push(SC[own]); SO.push(0); SBR.push(0); links++;
+      } else {                                 // next to the middle of a street: split it there
+        let l = splits.get(best); if (!l) splits.set(best, l = []); l.push([bt, n]); joins++;
+      }
+    }
+    for (const [s, l] of splits) {
+      l.sort((p, q) => p[0] - q[0]);
+      let prev = SA[s];
+      for (const [, n] of l) { SA.push(prev); SB.push(n); SC.push(SC[s]); SO.push(SO[s]); SBR.push(SBR[s]); prev = n; }
+      SA.push(prev); SB.push(SB[s]); SC.push(SC[s]); SO.push(SO[s]); SBR.push(SBR[s]);
+      SA[s] = -1;                              // the original segment is replaced by its pieces
+    }
+    const keep = SA.map((a) => a >= 0);
+    const f = (arr) => arr.filter((_, i) => keep[i]);
+    SA = f(SA); SB = f(SB); SC = f(SC); SO = f(SO); SBR = f(SBR);
+    log(`Dead ends joined: ${joins} onto streets, ${links} by short links`);
+  }
+
+  // ---------- 2b. streets that cross with no shared point (junction dropped from both lines): join them there
+  {
+    const S0 = SA.length, CELL = 64, grid = new Map(), gk = (cx, cy) => cx * 1048576 + cy;
+    for (let s = 0; s < S0; s++) {
+      if (SBR[s]) continue;                                    // bridges pass over, never join
+      const ax = NX[SA[s]], ay = NY[SA[s]], bx = NX[SB[s]], by = NY[SB[s]];
+      for (let cx = Math.floor(Math.min(ax, bx) / CELL); cx <= Math.floor(Math.max(ax, bx) / CELL); cx++)
+        for (let cy = Math.floor(Math.min(ay, by) / CELL); cy <= Math.floor(Math.max(ay, by) / CELL); cy++) {
+          const g = gk(cx, cy); let arr = grid.get(g); if (!arr) grid.set(g, arr = []); arr.push(s);
+        }
+    }
+    const splits = new Map(), tried = new Set();
+    const addSplit = (s, t, n) => { let l = splits.get(s); if (!l) splits.set(s, l = []); l.push([t, n]); };
+    let crossings = 0;
+    for (const arr of grid.values()) {
+      for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
+        const p = arr[i], q = arr[j], pk = p < q ? p * 4194304 + q : q * 4194304 + p;
+        if (tried.has(pk)) continue; tried.add(pk);
+        if (SA[p] === SA[q] || SA[p] === SB[q] || SB[p] === SA[q] || SB[p] === SB[q]) continue;
+        const x1 = NX[SA[p]], y1 = NY[SA[p]], x2 = NX[SB[p]], y2 = NY[SB[p]], x3 = NX[SA[q]], y3 = NY[SA[q]], x4 = NX[SB[q]], y4 = NY[SB[q]];
+        const den = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3);
+        if (!den) continue;
+        const t = ((x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)) / den, u = ((x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)) / den;
+        if (t <= 0.001 || t >= 0.999 || u <= 0.001 || u >= 0.999) continue;
+        const n = node(Math.round(x1 + t * (x2 - x1)), Math.round(y1 + t * (y2 - y1)));
+        addSplit(p, t, n); addSplit(q, u, n); crossings++;
+      }
+    }
+    for (const [s, l] of splits) {
+      l.sort((a, b) => a[0] - b[0]);
+      let prev = SA[s];
+      for (const [, n] of l) { if (n !== prev) { SA.push(prev); SB.push(n); SC.push(SC[s]); SO.push(SO[s]); SBR.push(SBR[s]); prev = n; } }
+      if (prev !== SB[s]) { SA.push(prev); SB.push(SB[s]); SC.push(SC[s]); SO.push(SO[s]); SBR.push(SBR[s]); }
+      SA[s] = -1;
+    }
+    const keep = SA.map((a) => a >= 0);
+    const f = (arr) => arr.filter((_, i) => keep[i]);
+    SA = f(SA); SB = f(SB); SC = f(SC); SO = f(SO); SBR = f(SBR);
+    log(`Crossings joined: ${crossings}`);
+  }
+
+  // ---------- 3. chains of points between junctions become edges
+  const S = SA.length, NN = NX.length;
+  const deg = new Int32Array(NN);
+  for (let s = 0; s < S; s++) { deg[SA[s]]++; deg[SB[s]]++; }
+  const start = new Int32Array(NN + 1);
+  for (let n = 0; n < NN; n++) start[n + 1] = start[n] + deg[n];
+  const fill = start.slice(0, NN), adj = new Int32Array(2 * S);
+  for (let s = 0; s < S; s++) { adj[fill[SA[s]]++] = s; adj[fill[SB[s]]++] = s; }
+  const forced = new Uint8Array(NN);
+  const isJ = (n) => {
+    if (forced[n] || deg[n] !== 2) return true;
+    const s1 = adj[start[n]], s2 = adj[start[n] + 1];
+    if (SC[s1] !== SC[s2] || SO[s1] !== SO[s2]) return true;
+    if (SO[s1]) return !((SB[s1] === n && SA[s2] === n) || (SA[s1] === n && SB[s2] === n));
+    return false;
+  };
+  const used = new Uint8Array(S), EDGES = [];
+  const walk = (from, s) => {
+    const pts = [from], segs = [];
+    let cur = from;
+    for (;;) {
+      used[s] = 1; segs.push(s);
+      const nxt = SA[s] === cur ? SB[s] : SA[s];
+      pts.push(nxt);
+      if (isJ(nxt)) break;
+      const s2 = adj[start[nxt]] === s ? adj[start[nxt] + 1] : adj[start[nxt]];
+      if (used[s2]) break;
+      cur = nxt; s = s2;
+    }
+    const s0 = segs[0];
+    let ow = SO[s0];
+    if (ow && SA[s0] !== pts[0]) { pts.reverse(); segs.reverse(); }   // store one-way edges in their allowed direction
+    EDGES.push({ pts, segs, cls: SC[s0], ow });
+  };
+  for (let n = 0; n < NN; n++) if (deg[n] && isJ(n)) for (let k = start[n]; k < start[n + 1]; k++) if (!used[adj[k]]) walk(n, adj[k]);
+  for (let s = 0; s < S; s++) if (!used[s]) { forced[SA[s]] = 1; walk(SA[s], s); }   // closed loops with no junction
+  log(`Edges: ${EDGES.length}`);
+
+  // ---------- 4. terrain heights (Terrarium PNG tiles, zoom 13, ~15 m pixels)
+  const DZ = 13, dem = new Map();
+  const djobs = [];
+  for (let x = lon2t(BBOX[0], DZ); x <= lon2t(BBOX[2], DZ); x++)
+    for (let y = lat2t(BBOX[3], DZ); y <= lat2t(BBOX[1], DZ); y++) djobs.push([x, y]);
+  await pool(djobs, 6, async ([x, y]) => {
+    const r = await fetch(`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${DZ}/${x}/${y}.png`);
+    const bm = await createImageBitmap(await r.blob());
+    const cv = new OffscreenCanvas(256, 256), cx = cv.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(bm, 0, 0);
+    const d = cx.getImageData(0, 0, 256, 256).data, h = new Float32Array(65536);
+    for (let i = 0; i < 65536; i++) h[i] = d[i * 4] * 256 + d[i * 4 + 1] + d[i * 4 + 2] / 256 - 32768;
+    dem.set(x * 100000 + y, h);
+  });
+  log(`Terrain: ${djobs.length} tiles`);
+  const px = (gx, gy) => { const h = dem.get(Math.floor(gx / 256) * 100000 + Math.floor(gy / 256));
+    return h ? h[(gy & 255) * 256 + (gx & 255)] : 0; };
+  const elev = (X, Y) => {           // bilinear; z14 units / 32 = z13 pixels
+    const fx = X / 32 - 0.5, fy = Y / 32 - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), u = fx - x0, v = fy - y0;
+    return (px(x0, y0) * (1 - u) + px(x0 + 1, y0) * u) * (1 - v) + (px(x0, y0 + 1) * (1 - u) + px(x0 + 1, y0 + 1) * u) * v;
+  };
+
+  // per edge: length, height of each point (bridges spanned straight), climbs each way on 15 m samples
+  for (const e of EDGES) {
+    const { pts, segs } = e, n = pts.length;
+    const cum = new Float64Array(n), z = new Float64Array(n);
+    for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(NX[pts[i]] - NX[pts[i - 1]], NY[pts[i]] - NY[pts[i - 1]]) * MPU;
+    for (let i = 0; i < n; i++) z[i] = elev(NX[pts[i]], NY[pts[i]]);
+    for (let i = 0; i < segs.length;) {          // a run of bridge segments: heights straight from end to end
+      if (!SBR[segs[i]]) { i++; continue; }
+      let j = i; while (j < segs.length && SBR[segs[j]]) j++;
+      const a = i, b = j, za = z[a], zb = z[b], L = cum[b] - cum[a] || 1;
+      for (let k = a + 1; k < b; k++) z[k] = za + (zb - za) * (cum[k] - cum[a]) / L;
+      i = j;
+    }
+    e.len = cum[n - 1]; e.z = z;
+    let up = 0, dn = 0, su = 0, sd = 0, prevZ = z[0], prevD = 0, seg = 0;
+    const L = e.len, steps = Math.max(1, Math.round(L / STEP));
+    for (let k = 1; k <= steps; k++) {
+      const d = L * k / steps;
+      while (seg < n - 2 && cum[seg + 1] < d) seg++;
+      const t = (d - cum[seg]) / ((cum[seg + 1] - cum[seg]) || 1);
+      let zz;
+      if (SBR[segs[seg]]) zz = z[seg] + (z[seg + 1] - z[seg]) * t;
+      else zz = elev(NX[pts[seg]] + (NX[pts[seg + 1]] - NX[pts[seg]]) * t, NY[pts[seg]] + (NY[pts[seg + 1]] - NY[pts[seg]]) * t);
+      const dz = zz - prevZ, run = d - prevD;
+      if (dz > 0) { up += dz; if (dz / run > STEEP) su += dz; } else { dn -= dz; if (-dz / run > STEEP) sd -= dz; }
+      prevZ = zz; prevD = d;
+    }
+    Object.assign(e, { up, dn, su, sd });
+  }
+  log('Climbs computed');
+
+  // ---------- 5. collisions within 20 m of each edge
+  const col = await (await fetch(collisionsUrl, { cache: 'no-cache' })).json();
+  const fatal = new Set(col.fatal || []);
+  const R = COL_R / MPU, CELL = 64, grid = new Map(), gk = (cx, cy) => cx * 1048576 + cy;
+  EDGES.forEach((e, id) => {
+    e.col = 0; e.fat = 0;
+    for (let i = 1; i < e.pts.length; i++) {
+      const ax = NX[e.pts[i - 1]], ay = NY[e.pts[i - 1]], bx = NX[e.pts[i]], by = NY[e.pts[i]];
+      for (let cx = Math.floor((Math.min(ax, bx) - R) / CELL); cx <= Math.floor((Math.max(ax, bx) + R) / CELL); cx++)
+        for (let cy = Math.floor((Math.min(ay, by) - R) / CELL); cy <= Math.floor((Math.max(ay, by) + R) / CELL); cy++) {
+          const g = gk(cx, cy); let arr = grid.get(g); if (!arr) grid.set(g, arr = []); arr.push(id, i);
+        }
+    }
+  });
+  let near = 0;
+  for (let i = 0; i < col.t.length; i++) {
+    const lon = col.x[i] / 1e5, lat = col.y[i] / 1e5;
+    if (lon < BBOX[0] || lon > BBOX[2] || lat < BBOX[1] || lat > BBOX[3]) continue;
+    const X = toX(lon), Y = toY(lat), arr = grid.get(gk(Math.floor(X / CELL), Math.floor(Y / CELL)));
+    if (!arr) continue;
+    const hit = new Set();
+    for (let k = 0; k < arr.length; k += 2) {
+      const id = arr[k]; if (hit.has(id)) continue;
+      const e = EDGES[id], j = arr[k + 1];
+      const ax = NX[e.pts[j - 1]], ay = NY[e.pts[j - 1]], dx = NX[e.pts[j]] - ax, dy = NY[e.pts[j]] - ay;
+      const t = Math.max(0, Math.min(1, ((X - ax) * dx + (Y - ay) * dy) / (dx * dx + dy * dy || 1)));
+      if (Math.hypot(X - ax - t * dx, Y - ay - t * dy) <= R) hit.add(id);
+    }
+    if (hit.size) near++;
+    for (const id of hit) { EDGES[id].col++; if (fatal.has(col.c[i])) EDGES[id].fat++; }
+  }
+  log(`Collisions placed: ${near}`);
+
+  // ---------- 6. compact output: junction nodes, edges, simplified geometry with heights
+  const remap = new Map(), nx = [], ny = [], nz = [];
+  const nid = (p, zz) => { let id = remap.get(p); if (id === undefined) { id = nx.length; remap.set(p, id); nx.push(NX[p]); ny.push(NY[p]); nz.push(Math.round(zz * 10)); } return id; };
+  const out = { a: [], b: [], len: [], cls: [], ow: [], col: [], fat: [], up: [], dn: [], su: [], sd: [], go: [], g: [] };
+  const dp = (pts, lo, hi, keep) => {
+    let md = 0, mi = -1;
+    const ax = NX[pts[lo]], ay = NY[pts[lo]], dx = NX[pts[hi]] - ax, dy = NY[pts[hi]] - ay, L2 = dx * dx + dy * dy || 1;
+    for (let i = lo + 1; i < hi; i++) {
+      const t = Math.max(0, Math.min(1, ((NX[pts[i]] - ax) * dx + (NY[pts[i]] - ay) * dy) / L2));
+      const d = Math.hypot(NX[pts[i]] - ax - t * dx, NY[pts[i]] - ay - t * dy);
+      if (d > md) { md = d; mi = i; }
+    }
+    if (md > DP) { keep[mi] = 1; dp(pts, lo, mi, keep); dp(pts, mi, hi, keep); }
+  };
+  for (const e of EDGES) {
+    const n = e.pts.length, a = nid(e.pts[0], e.z[0]), b = nid(e.pts[n - 1], e.z[n - 1]);
+    out.a.push(a); out.b.push(b); out.len.push(Math.max(1, Math.round(e.len))); out.cls.push(e.cls); out.ow.push(e.ow);
+    out.col.push(e.col); out.fat.push(e.fat);
+    out.up.push(Math.round(e.up * 10)); out.dn.push(Math.round(e.dn * 10)); out.su.push(Math.round(e.su * 10)); out.sd.push(Math.round(e.sd * 10));
+    out.go.push(out.g.length);
+    const keep = new Uint8Array(n); dp(e.pts, 0, n - 1, keep);
+    let px0 = NX[e.pts[0]], py0 = NY[e.pts[0]], pz0 = Math.round(e.z[0] * 10);
+    for (let i = 1; i < n - 1; i++) if (keep[i]) {
+      const zz = Math.round(e.z[i] * 10);
+      out.g.push(NX[e.pts[i]] - px0, NY[e.pts[i]] - py0, zz - pz0);
+      px0 = NX[e.pts[i]]; py0 = NY[e.pts[i]]; pz0 = zz;
+    }
+  }
+  const delta = (arr) => arr.map((v, i) => (i ? v - arr[i - 1] : v));
+  const result = { v: GRAPH_VERSION, built: new Date().toISOString().slice(0, 10), bbox: BBOX, z: Z, ext: EXT,
+    note: 'Streets © OpenStreetMap contributors (OpenFreeMap tiles); heights: AWS Terrain Tiles; collisions: accidents.maps.gov.gr',
+    n: { x: delta(nx), y: delta(ny), e: nz }, e: out };
+  log(`Output: ${nx.length} junctions, ${out.a.length} edges, ${out.g.length / 3} shape points, ${((performance.now() - t0) / 1000).toFixed(0)} s`);
+  return result;
+}

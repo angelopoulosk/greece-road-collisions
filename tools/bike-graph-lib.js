@@ -2,7 +2,7 @@
 import { VectorTile } from 'https://esm.sh/@mapbox/vector-tile@2.0.3';
 import Pbf from 'https://esm.sh/pbf@4.0.1';
 
-export const GRAPH_VERSION = 2;
+export const GRAPH_VERSION = 3;
 
 // Area (Athens basin), tile zoom and analysis settings.
 const BBOX = [23.56, 37.85, 23.90, 38.12];
@@ -12,6 +12,7 @@ const SNAP_END = 6;          // units: a dead end this close to another street i
 const COL_R = 20;            // metres: a collision counts for every street within this distance
 const STEP = 15;             // metres between elevation samples along a street
 const STEEP = 0.05;          // gradient above which climbing counts as steep
+const HYST = 1.5;            // metres: rises and falls smaller than this are terrain-data noise, not climbing
 const DP = 3;                // units: geometry simplification tolerance for drawing
 
 const lon2t = (lon, z) => Math.floor((lon + 180) / 360 * 2 ** z);
@@ -217,9 +218,15 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   log(`Terrain: ${djobs.length} tiles`);
   const px = (gx, gy) => { const h = dem.get(Math.floor(gx / 256) * 100000 + Math.floor(gy / 256));
     return h ? h[(gy & 255) * 256 + (gx & 255)] : 0; };
-  const elev = (X, Y) => {           // bilinear; z14 units / 32 = z13 pixels
-    const fx = X / 32 - 0.5, fy = Y / 32 - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), u = fx - x0, v = fy - y0;
+  const bil = (fx, fy) => {          // bilinear in z13 pixels
+    const x0 = Math.floor(fx), y0 = Math.floor(fy), u = fx - x0, v = fy - y0;
     return (px(x0, y0) * (1 - u) + px(x0 + 1, y0) * u) * (1 - v) + (px(x0, y0 + 1) * (1 - u) + px(x0 + 1, y0 + 1) * u) * v;
+  };
+  const elev = (X, Y) => {           // smoothed over ~3x3 pixels (~45 m) to take out terrain-data noise; z14 units / 32 = z13 pixels
+    const fx = X / 32 - 0.5, fy = Y / 32 - 0.5;
+    let sum = 0, w = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const k = (dx ? 1 : 2) * (dy ? 1 : 2); sum += k * bil(fx + dx, fy + dy); w += k; }
+    return sum / w;
   };
 
   // per edge: length, height of each point (bridges spanned straight), climbs each way on 15 m samples
@@ -236,19 +243,26 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
       i = j;
     }
     e.len = cum[n - 1]; e.z = z;
-    let up = 0, dn = 0, su = 0, sd = 0, prevZ = z[0], prevD = 0, seg = 0;
-    const L = e.len, steps = Math.max(1, Math.round(L / STEP));
+    // heights every 15 m; climbing counted with a 1.5 m hysteresis so data noise does not add up,
+    // and the totals always agree with the height difference between the two ends
+    const L = e.len, steps = Math.max(1, Math.round(L / STEP)), zs = [z[0]], ds = [0];
+    let seg = 0;
     for (let k = 1; k <= steps; k++) {
       const d = L * k / steps;
       while (seg < n - 2 && cum[seg + 1] < d) seg++;
       const t = (d - cum[seg]) / ((cum[seg + 1] - cum[seg]) || 1);
-      let zz;
-      if (SBR[segs[seg]]) zz = z[seg] + (z[seg + 1] - z[seg]) * t;
-      else zz = elev(NX[pts[seg]] + (NX[pts[seg + 1]] - NX[pts[seg]]) * t, NY[pts[seg]] + (NY[pts[seg + 1]] - NY[pts[seg]]) * t);
-      const dz = zz - prevZ, run = d - prevD;
-      if (dz > 0) { up += dz; if (dz / run > STEEP) su += dz; } else { dn -= dz; if (-dz / run > STEEP) sd -= dz; }
-      prevZ = zz; prevD = d;
+      zs.push(SBR[segs[seg]] || k === steps ? z[seg] + (z[seg + 1] - z[seg]) * t
+        : elev(NX[pts[seg]] + (NX[pts[seg + 1]] - NX[pts[seg]]) * t, NY[pts[seg]] + (NY[pts[seg + 1]] - NY[pts[seg]]) * t));
+      ds.push(d);
     }
+    let up = 0, dn = 0, su = 0, sd = 0, ref = zs[0], refD = 0;
+    for (let k = 1; k < zs.length; k++) {
+      const dz = zs[k] - ref, run = Math.max(ds[k] - refD, 1);
+      if (dz >= HYST) { up += dz; if (dz / run > STEEP) su += dz; ref = zs[k]; refD = ds[k]; }
+      else if (-dz >= HYST) { dn -= dz; if (-dz / run > STEEP) sd -= dz; ref = zs[k]; refD = ds[k]; }
+    }
+    const rest = zs[zs.length - 1] - ref;
+    if (rest > 0) up += rest; else dn -= rest;
     Object.assign(e, { up, dn, su, sd });
   }
   log('Climbs computed');

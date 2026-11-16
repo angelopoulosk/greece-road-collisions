@@ -309,7 +309,7 @@ let last = null;
 function compute() {
   saveState();
   if (!G) return;
-  if (!(P.a && P.b)) { clearRoute(); msg(P.a ? 'Πατήστε για προορισμό.' : ''); return; }
+  if (!(P.a && P.b)) { clearRoute(); msg(P.a ? 'Πατήστε για προορισμό.' : 'Πατήστε στον χάρτη για αφετηρία.'); return; }
   const s = snap(P.a), t = snap(P.b);
   if (s < 0 || t < 0) { clearRoute(); msg('Το σημείο είναι εκτός της περιοχής που καλύπτεται (λεκανοπέδιο Αθήνας) ή μακριά από δρόμο.'); return; }
   if (s === t) { clearRoute(); msg('Αφετηρία και προορισμός είναι στο ίδιο σημείο.'); return; }

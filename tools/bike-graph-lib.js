@@ -2,7 +2,7 @@
 import { VectorTile } from 'https://esm.sh/@mapbox/vector-tile@2.0.3';
 import Pbf from 'https://esm.sh/pbf@4.0.1';
 
-export const GRAPH_VERSION = 4;
+export const GRAPH_VERSION = 5;
 
 // Area (Athens basin), tile zoom and analysis settings.
 const BBOX = [23.56, 37.85, 23.90, 38.12];
@@ -12,6 +12,8 @@ const SNAP_END = 6;          // units: a dead end this close to another street i
 const COL_R = 20;            // metres: a collision belongs to a junction or street within this distance
 const STEP = 15;             // metres between elevation samples along a street
 const STEEP = 0.05;          // gradient above which climbing counts as steep
+const SIGMA = 75;            // metres: spread of each collision's risk onto nearby streets (busy junctions affect their approaches)
+const CUT = 220;             // metres: no spread beyond this
 const HYST = 1.5;            // metres: rises and falls smaller than this are terrain-data noise, not climbing
 const DP = 3;                // units: geometry simplification tolerance for drawing
 
@@ -267,6 +269,7 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   }
   log('Climbs computed');
 
+  let JRISK = new Map();
   // ---------- 5. collisions: at a junction (3+ streets, within 20 m) they count once for that junction;
   // elsewhere they count for the nearest street only, so a dangerous junction does not mark every street around it
   const col = await (await fetch(collisionsUrl, { cache: 'no-cache' })).json();
@@ -310,10 +313,56 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   }
   log(`Collisions placed: ${atJ} at junctions, ${onStreet} along streets`);
 
+  // ---------- 5b. exposure: collisions around each street, weighted by distance (Gaussian, sigma 75 m).
+  // A street feeding a busy junction or running beside a dangerous avenue carries that traffic risk too.
+  // Value ~ "collisions in the immediate area"; sampled every 25 m along each street and averaged.
+  {
+    const CC = 256, cg = new Map(), sig = SIGMA / MPU, cut = CUT / MPU, k2 = 1 / (2 * sig * sig);
+    let ncol = 0;
+    for (let i = 0; i < col.t.length; i++) {
+      const lon = col.x[i] / 1e5, lat = col.y[i] / 1e5;
+      if (lon < BBOX[0] - 0.01 || lon > BBOX[2] + 0.01 || lat < BBOX[1] - 0.01 || lat > BBOX[3] + 0.01) continue;
+      const X = toX(lon), Y = toY(lat), g = gk(Math.floor(X / CC), Math.floor(Y / CC));
+      let arr = cg.get(g); if (!arr) cg.set(g, arr = []); arr.push(X, Y); ncol++;
+    }
+    const span = Math.ceil(cut / CC);
+    const kde = (X, Y) => {
+      const cx = Math.floor(X / CC), cy = Math.floor(Y / CC);
+      let v = 0;
+      for (let dx = -span; dx <= span; dx++) for (let dy = -span; dy <= span; dy++) {
+        const arr = cg.get(gk(cx + dx, cy + dy)); if (!arr) continue;
+        for (let k = 0; k < arr.length; k += 2) { const ex = arr[k] - X, ey = arr[k + 1] - Y, d2 = ex * ex + ey * ey; if (d2 < cut * cut) v += Math.exp(-d2 * k2); }
+      }
+      return v;
+    };
+    const lens = [], risks = [];
+    for (const e of EDGES) {
+      const n = e.pts.length, steps = Math.max(1, Math.round(e.len / 25));
+      let cum = 0, seg = 0, acc = 0;
+      const segLen = []; for (let i = 1; i < n; i++) segLen.push(Math.hypot(NX[e.pts[i]] - NX[e.pts[i - 1]], NY[e.pts[i]] - NY[e.pts[i - 1]]));
+      const total = segLen.reduce((a, b) => a + b, 0) || 1;
+      for (let k = 0; k <= steps; k++) {
+        const d = total * k / steps;
+        while (seg < segLen.length - 1 && cum + segLen[seg] < d) { cum += segLen[seg]; seg++; }
+        const t = Math.min(1, (d - cum) / (segLen[seg] || 1)), a = e.pts[seg], b = e.pts[seg + 1];
+        acc += kde(NX[a] + (NX[b] - NX[a]) * t, NY[a] + (NY[b] - NY[a]) * t);
+      }
+      e.rk = acc / (steps + 1);
+      lens.push(e.len); risks.push(e.rk);
+    }
+    JRISK = new Map();
+    for (const [p, d] of jdeg) if (d >= 3) JRISK.set(p, kde(NX[p], NY[p]));
+    // length-weighted percentiles, logged to set the colour classes
+    const idx = risks.map((_, i) => i).sort((a, b) => risks[a] - risks[b]), L = lens.reduce((a, b) => a + b, 0);
+    let c = 0, q = [0.1, 0.25, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98], qi = 0; const qs = [];
+    for (const i of idx) { c += lens[i]; while (qi < q.length && c >= q[qi] * L) { qs.push(q[qi] * 100 + '%:' + risks[i].toFixed(2)); qi++; } }
+    log(`Exposure from ${ncol} collisions; length-weighted percentiles ${qs.join(' ')}`);
+  }
+
   // ---------- 6. compact output: junction nodes, edges, simplified geometry with heights
-  const remap = new Map(), nx = [], ny = [], nz = [], nc = [], nf = [];
-  const nid = (p, zz) => { let id = remap.get(p); if (id === undefined) { id = nx.length; remap.set(p, id); nx.push(NX[p]); ny.push(NY[p]); nz.push(Math.round(zz * 10)); nc.push(JCOL.get(p) || 0); nf.push(JFAT.get(p) || 0); } return id; };
-  const out = { a: [], b: [], len: [], cls: [], ow: [], col: [], fat: [], up: [], dn: [], su: [], sd: [], go: [], g: [] };
+  const remap = new Map(), nx = [], ny = [], nz = [], nc = [], nf = [], nr = [];
+  const nid = (p, zz) => { let id = remap.get(p); if (id === undefined) { id = nx.length; remap.set(p, id); nx.push(NX[p]); ny.push(NY[p]); nz.push(Math.round(zz * 10)); nc.push(JCOL.get(p) || 0); nf.push(JFAT.get(p) || 0); nr.push(Math.round((JRISK.get(p) || 0) * 100)); } return id; };
+  const out = { a: [], b: [], len: [], cls: [], ow: [], col: [], fat: [], rk: [], up: [], dn: [], su: [], sd: [], go: [], g: [] };
   const dp = (pts, lo, hi, keep) => {
     let md = 0, mi = -1;
     const ax = NX[pts[lo]], ay = NY[pts[lo]], dx = NX[pts[hi]] - ax, dy = NY[pts[hi]] - ay, L2 = dx * dx + dy * dy || 1;
@@ -327,7 +376,7 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   for (const e of EDGES) {
     const n = e.pts.length, a = nid(e.pts[0], e.z[0]), b = nid(e.pts[n - 1], e.z[n - 1]);
     out.a.push(a); out.b.push(b); out.len.push(Math.max(1, Math.round(e.len))); out.cls.push(e.cls); out.ow.push(e.ow);
-    out.col.push(e.col); out.fat.push(e.fat);
+    out.col.push(e.col); out.fat.push(e.fat); out.rk.push(Math.round(e.rk * 100));
     out.up.push(Math.round(e.up * 10)); out.dn.push(Math.round(e.dn * 10)); out.su.push(Math.round(e.su * 10)); out.sd.push(Math.round(e.sd * 10));
     out.go.push(out.g.length);
     const keep = new Uint8Array(n); dp(e.pts, 0, n - 1, keep);
@@ -341,7 +390,7 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   const delta = (arr) => arr.map((v, i) => (i ? v - arr[i - 1] : v));
   const result = { v: GRAPH_VERSION, built: new Date().toISOString().slice(0, 10), bbox: BBOX, z: Z, ext: EXT,
     note: 'Streets © OpenStreetMap contributors (OpenFreeMap tiles); heights: AWS Terrain Tiles; collisions: accidents.maps.gov.gr',
-    n: { x: delta(nx), y: delta(ny), e: nz, c: nc, f: nf }, e: out };
+    n: { x: delta(nx), y: delta(ny), e: nz, c: nc, f: nf, r: nr }, e: out };
   log(`Output: ${nx.length} junctions, ${out.a.length} edges, ${out.g.length / 3} shape points, ${((performance.now() - t0) / 1000).toFixed(0)} s`);
   return result;
 }

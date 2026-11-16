@@ -381,6 +381,13 @@ function openSpider(kind, ix, center, key) {
   spiderOpen = { key };
 }
 
+// Phones: the bottom bar opens and closes the filter sheet.
+const panelEl = document.getElementById('panel');
+document.getElementById('sheetToggle').onclick = () => {
+  const open = panelEl.classList.toggle('collapsed') === false;
+  document.getElementById('sheetToggle').setAttribute('aria-expanded', open);
+};
+
 function refresh() {
   closeSpider();
   updateYears();

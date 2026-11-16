@@ -335,10 +335,12 @@ async function build() {
     n: { x: delta(nx), y: delta(ny), e: nz }, e: out };
   const json = JSON.stringify(result);
   log(`Output: ${nx.length} junctions, ${out.a.length} edges, ${out.g.length / 3} shape points, ${(json.length / 1e6).toFixed(1)} MB, ${((performance.now() - t0) / 1000).toFixed(0)} s`);
+  // a visible link: browsers may block a second automatic download from the same page
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-  a.download = 'bike-graph.json';
-  document.body.appendChild(a); a.click(); a.remove();
+  a.download = 'bike-graph.json'; a.id = 'save'; a.textContent = 'Save bike-graph.json';
+  a.style.cssText = 'display:inline-block;margin-top:12px;padding:10px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-weight:600';
+  logEl.after(a);
   window.BUILD_DONE = { nodes: nx.length, edges: out.a.length, mb: json.length / 1e6 };
 }
 document.getElementById('go').onclick = () => build().catch((e) => { log('ERROR: ' + e.stack); window.BUILD_DONE = { error: String(e) }; });

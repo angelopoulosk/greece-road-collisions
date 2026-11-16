@@ -2,14 +2,14 @@
 import { VectorTile } from 'https://esm.sh/@mapbox/vector-tile@2.0.3';
 import Pbf from 'https://esm.sh/pbf@4.0.1';
 
-export const GRAPH_VERSION = 3;
+export const GRAPH_VERSION = 4;
 
 // Area (Athens basin), tile zoom and analysis settings.
 const BBOX = [23.56, 37.85, 23.90, 38.12];
 const Z = 14, EXT = 4096, WORLD = 2 ** Z * EXT;           // world grid in z14 tile units (~0.47 m here)
 const CLS = { primary: 0, secondary: 1, tertiary: 2, minor: 3 };   // no motorways or trunk roads for bikes
 const SNAP_END = 6;          // units: a dead end this close to another street is joined to it
-const COL_R = 20;            // metres: a collision counts for every street within this distance
+const COL_R = 20;            // metres: a collision belongs to a junction or street within this distance
 const STEP = 15;             // metres between elevation samples along a street
 const STEEP = 0.05;          // gradient above which climbing counts as steep
 const HYST = 1.5;            // metres: rises and falls smaller than this are terrain-data noise, not climbing
@@ -267,10 +267,14 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   }
   log('Climbs computed');
 
-  // ---------- 5. collisions within 20 m of each edge
+  // ---------- 5. collisions: at a junction (3+ streets, within 20 m) they count once for that junction;
+  // elsewhere they count for the nearest street only, so a dangerous junction does not mark every street around it
   const col = await (await fetch(collisionsUrl, { cache: 'no-cache' })).json();
   const fatal = new Set(col.fatal || []);
-  const R = COL_R / MPU, CELL = 64, grid = new Map(), gk = (cx, cy) => cx * 1048576 + cy;
+  const R = COL_R / MPU, CELL = 64, grid = new Map(), jgrid = new Map(), gk = (cx, cy) => cx * 1048576 + cy;
+  const jdeg = new Map();
+  for (const e of EDGES) for (const p of [e.pts[0], e.pts[e.pts.length - 1]]) jdeg.set(p, (jdeg.get(p) || 0) + 1);
+  for (const [p, d] of jdeg) if (d >= 3) { const g = gk(Math.floor(NX[p] / CELL), Math.floor(NY[p] / CELL)); let arr = jgrid.get(g); if (!arr) jgrid.set(g, arr = []); arr.push(p); }
   EDGES.forEach((e, id) => {
     e.col = 0; e.fat = 0;
     for (let i = 1; i < e.pts.length; i++) {
@@ -281,28 +285,34 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
         }
     }
   });
-  let near = 0;
+  const JCOL = new Map(), JFAT = new Map();
+  let atJ = 0, onStreet = 0;
   for (let i = 0; i < col.t.length; i++) {
     const lon = col.x[i] / 1e5, lat = col.y[i] / 1e5;
     if (lon < BBOX[0] || lon > BBOX[2] || lat < BBOX[1] || lat > BBOX[3]) continue;
-    const X = toX(lon), Y = toY(lat), arr = grid.get(gk(Math.floor(X / CELL), Math.floor(Y / CELL)));
+    const X = toX(lon), Y = toY(lat), cx = Math.floor(X / CELL), cy = Math.floor(Y / CELL), isF = fatal.has(col.c[i]);
+    let bj = -1, bjd = R;
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const p of jgrid.get(gk(cx + dx, cy + dy)) || []) {
+      const d = Math.hypot(NX[p] - X, NY[p] - Y); if (d <= bjd) { bjd = d; bj = p; }
+    }
+    if (bj >= 0) { JCOL.set(bj, (JCOL.get(bj) || 0) + 1); if (isF) JFAT.set(bj, (JFAT.get(bj) || 0) + 1); atJ++; continue; }
+    const arr = grid.get(gk(cx, cy));
     if (!arr) continue;
-    const hit = new Set();
+    let best = -1, bd = R;
     for (let k = 0; k < arr.length; k += 2) {
-      const id = arr[k]; if (hit.has(id)) continue;
-      const e = EDGES[id], j = arr[k + 1];
+      const e = EDGES[arr[k]], j = arr[k + 1];
       const ax = NX[e.pts[j - 1]], ay = NY[e.pts[j - 1]], dx = NX[e.pts[j]] - ax, dy = NY[e.pts[j]] - ay;
       const t = Math.max(0, Math.min(1, ((X - ax) * dx + (Y - ay) * dy) / (dx * dx + dy * dy || 1)));
-      if (Math.hypot(X - ax - t * dx, Y - ay - t * dy) <= R) hit.add(id);
+      const d = Math.hypot(X - ax - t * dx, Y - ay - t * dy);
+      if (d <= bd) { bd = d; best = arr[k]; }
     }
-    if (hit.size) near++;
-    for (const id of hit) { EDGES[id].col++; if (fatal.has(col.c[i])) EDGES[id].fat++; }
+    if (best >= 0) { EDGES[best].col++; if (isF) EDGES[best].fat++; onStreet++; }
   }
-  log(`Collisions placed: ${near}`);
+  log(`Collisions placed: ${atJ} at junctions, ${onStreet} along streets`);
 
   // ---------- 6. compact output: junction nodes, edges, simplified geometry with heights
-  const remap = new Map(), nx = [], ny = [], nz = [];
-  const nid = (p, zz) => { let id = remap.get(p); if (id === undefined) { id = nx.length; remap.set(p, id); nx.push(NX[p]); ny.push(NY[p]); nz.push(Math.round(zz * 10)); } return id; };
+  const remap = new Map(), nx = [], ny = [], nz = [], nc = [], nf = [];
+  const nid = (p, zz) => { let id = remap.get(p); if (id === undefined) { id = nx.length; remap.set(p, id); nx.push(NX[p]); ny.push(NY[p]); nz.push(Math.round(zz * 10)); nc.push(JCOL.get(p) || 0); nf.push(JFAT.get(p) || 0); } return id; };
   const out = { a: [], b: [], len: [], cls: [], ow: [], col: [], fat: [], up: [], dn: [], su: [], sd: [], go: [], g: [] };
   const dp = (pts, lo, hi, keep) => {
     let md = 0, mi = -1;
@@ -331,7 +341,7 @@ export async function buildGraph({ collisionsUrl, log = () => {} } = {}) {
   const delta = (arr) => arr.map((v, i) => (i ? v - arr[i - 1] : v));
   const result = { v: GRAPH_VERSION, built: new Date().toISOString().slice(0, 10), bbox: BBOX, z: Z, ext: EXT,
     note: 'Streets © OpenStreetMap contributors (OpenFreeMap tiles); heights: AWS Terrain Tiles; collisions: accidents.maps.gov.gr',
-    n: { x: delta(nx), y: delta(ny), e: nz }, e: out };
+    n: { x: delta(nx), y: delta(ny), e: nz, c: nc, f: nf }, e: out };
   log(`Output: ${nx.length} junctions, ${out.a.length} edges, ${out.g.length / 3} shape points, ${((performance.now() - t0) / 1000).toFixed(0)} s`);
   return result;
 }
